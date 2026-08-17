@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CoolMS\Dtmpl\Loader;
 
 use CoolMS\Dtmpl\Exception\TemplateNotFoundException;
-use CoolMS\Dtmpl\Loader\PrioritizedLoaderInterface;
 use CoolMS\Dtmpl\TemplateLoaderInterface;
 use Throwable;
 
