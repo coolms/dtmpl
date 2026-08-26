@@ -81,8 +81,8 @@ final class WidgetInvocationTest extends TestCase
     public function testEngineStringifiesWidgetViaValueToString(): void
     {
         // Renderer returns a Stringable subclass that is not RenderedHtml --
-        // confirms valueToString (and the executeWidget cast) handle any
-        // Stringable correctly, not just RenderedHtml specifically.
+        // confirms the executeWidget path handles any Stringable, not just
+        // RenderedHtml specifically.
         $custom = new class('payload') implements Stringable {
             public function __construct(private string $payload)
             {
@@ -111,6 +111,40 @@ final class WidgetInvocationTest extends TestCase
         $engine = new DtmplEngine(widgets: $registry);
 
         self::assertSame('[payload]', $engine->render('{widget:custom}'));
+    }
+
+    public function testAWidgetDeclaresMarkupOrItIsEncoded(): void
+    {
+        // The engine cannot tell whether a renderer escaped what it
+        // interpolated, so markup declares itself -- the same rule every
+        // other emitted value follows. It also has to: the inline
+        // `{widget:}` path and `{def:x=widget:...}{var:x}` read the same
+        // value, and the second one cannot know where it came from.
+        $registry = new WidgetRegistry();
+        $registry->register($this->makeStaticRenderer('trusted', '<b>hi</b>'));
+        $registry->register(new class implements WidgetRendererInterface {
+            public string $key { get => 'plain'; }
+
+            public function __invoke(array $context, array $params = []): Stringable
+            {
+                return new class implements Stringable {
+                    public function __toString(): string
+                    {
+                        return '<b>hi</b>';
+                    }
+                };
+            }
+        });
+
+        $engine = new DtmplEngine(widgets: $registry);
+
+        // makeStaticRenderer returns a RenderedHtml -- markup, emitted as-is.
+        self::assertSame('<b>hi</b>', $engine->render('{widget:trusted}'));
+        self::assertSame('<b>hi</b>', $engine->render('{def:x=widget:trusted}{var:x}'));
+
+        // A bare Stringable is a value, on both paths.
+        self::assertSame('&lt;b&gt;hi&lt;/b&gt;', $engine->render('{widget:plain}'));
+        self::assertSame('&lt;b&gt;hi&lt;/b&gt;', $engine->render('{def:x=widget:plain}{var:x}'));
     }
 
     private function makeStaticRenderer(string $key, string $html): WidgetRendererInterface

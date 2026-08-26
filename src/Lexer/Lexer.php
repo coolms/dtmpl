@@ -405,6 +405,15 @@ final class Lexer
                 } else {
                     $this->scanNumber();
                 }
+            } elseif ('-' === $char && $this->isDigit($this->peek(1)) && !$this->isScanningWidgetIdSegment()) {
+                // A leading `-` on a number literal. Unambiguous: DTMPL
+                // has no arithmetic operators, and a general identifier
+                // cannot contain `-` (only a widget id segment can, which
+                // the guard above excludes). Without this branch
+                // `{def:offset=-5}` and `{var:n add:-5}` died on the
+                // catch-all "unexpected character" -- a negative had to
+                // arrive as a backtick string or through the context.
+                $this->scanNumber();
             } elseif ($this->isAlpha($char) || '_' === $char || '@' === $char) {
                 // `@` opens an entity-alias identifier (a later extension). Lives in tag mode only; `scanText` continues
                 // to treat `@` as literal so email addresses and prose
@@ -560,7 +569,14 @@ final class Lexer
     }
 
     /**
-     * Scan number literal.
+     * Scan number literal, with an optional leading `-`.
+     *
+     * The sign is consumed here rather than treated as an operator
+     * because DTMPL has no arithmetic: a `-` in tag mode is only ever
+     * part of a number (or of a widget id segment, which
+     * {@see scanIdentifier()} owns). Only the FIRST character may be a
+     * sign -- `5-3` still scans as one malformed number and fails at the
+     * parser, exactly as `5..3` does.
      */
     private function scanNumber(): void
     {
@@ -568,6 +584,10 @@ final class Lexer
         $startLine = $this->line;
         $startColumn = $this->column;
         $number = '';
+
+        if ('-' === $this->peek()) {
+            $number .= $this->advance();
+        }
 
         while (!$this->isEof() && ($this->isDigit($this->peek()) || '.' === $this->peek())) {
             $number .= $this->advance();

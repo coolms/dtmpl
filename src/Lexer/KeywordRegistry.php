@@ -68,6 +68,21 @@ final class KeywordRegistry
      */
     public static function findResemblance(string $candidate): ?string
     {
+        return self::closest($candidate, self::KEYWORDS);
+    }
+
+    /**
+     * The three-tier closeness check, over an arbitrary vocabulary.
+     *
+     * Extracted so the "did you mean" courtesy is not a privilege of tag
+     * keywords: the parser reuses it for loop modifiers, and any future
+     * closed vocabulary gets the same behaviour for free rather than a
+     * second, subtly different implementation.
+     *
+     * @param list<string> $vocabulary
+     */
+    public static function closest(string $candidate, array $vocabulary): ?string
+    {
         if ('' === $candidate) {
             return null;
         }
@@ -75,7 +90,7 @@ final class KeywordRegistry
         $candidateLen = strlen($candidate);
         $candidateChars = count_chars($candidate, 1);
 
-        foreach (self::KEYWORDS as $keyword) {
+        foreach ($vocabulary as $keyword) {
             $keywordLen = strlen($keyword);
             $lenDiff = abs($candidateLen - $keywordLen);
 

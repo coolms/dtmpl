@@ -6,9 +6,9 @@ namespace CoolMS\Dtmpl\Widget;
 
 use ArrayAccess;
 use ArrayIterator;
+use CoolMS\Dtmpl\Runtime\HtmlSafe;
 use IteratorAggregate;
 use LogicException;
-use Stringable;
 use Traversable;
 
 use function is_array;
@@ -45,7 +45,7 @@ use function is_array;
  * @implements IteratorAggregate<int|string, mixed>
  * @implements ArrayAccess<string, mixed>
  */
-final class WidgetResult implements Stringable, IteratorAggregate, ArrayAccess
+final class WidgetResult implements HtmlSafe, IteratorAggregate, ArrayAccess
 {
     /**
      * @param string               $html the eagerly-rendered partial HTML (what `{var:x}` emits)
