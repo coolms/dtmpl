@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace CoolMS\Dtmpl\Tests\Runtime;
 
+use CoolMS\Dtmpl\Exception\SecurityException;
+use CoolMS\Dtmpl\Exception\TemplateException;
+use CoolMS\Dtmpl\Exception\UnknownFilterException;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -172,6 +175,47 @@ final class FilterRegistryTest extends TestCase
         $available = $this->registry->getAvailableFilters();
         self::assertContains('truncate_words', $available);
         self::assertContains('filesize', $available);
+    }
+
+    #[Test]
+    public function thePhpPrefixIsReservedAgainstRegistration(): void
+    {
+        // apply() resolves custom filters BEFORE the allow-list, so a
+        // registration under this prefix would bind a name whose entire
+        // job is to promise the opposite. Refused at registration, where
+        // the offending name is still in hand.
+        $this->expectException(SecurityException::class);
+        $this->expectExceptionMessageMatches('/prefix is reserved/');
+
+        $this->registry->register('php.file_get_contents', static fn ($v) => $v);
+    }
+
+    #[Test]
+    public function theAllowListStillRefusesEverythingElse(): void
+    {
+        self::assertFalse($this->registry->has('php.file_get_contents'));
+
+        $this->expectException(SecurityException::class);
+        $this->registry->apply('php.file_get_contents', '/etc/passwd');
+    }
+
+    #[Test]
+    public function anUnknownFilterRaisesThePackagesOwnException(): void
+    {
+        // Was a bare SPL InvalidArgumentException, which a host could
+        // only catch by also catching unrelated argument errors of its
+        // own. TemplateException is the category.
+        $this->expectException(UnknownFilterException::class);
+
+        $this->registry->apply('nosuchfilter', 'x');
+    }
+
+    #[Test]
+    public function anUnknownFilterIsCatchableAsATemplateException(): void
+    {
+        $this->expectException(TemplateException::class);
+
+        $this->registry->apply('nosuchfilter', 'x');
     }
 
     protected function setUp(): void

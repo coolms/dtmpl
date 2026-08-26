@@ -49,6 +49,7 @@ final class Executor
         private readonly ?TemplateCompilerInterface $compiler = null,
         private readonly ?WidgetRegistry $widgets = null,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly OutputMode $outputMode = OutputMode::Html,
     ) {
     }
 
@@ -195,7 +196,8 @@ final class Executor
         return ($child instanceof ConditionalNode && $child->onOwnLine)
             || ($child instanceof LoopNode && $child->onOwnLine)
             || ($child instanceof IncludeNode && $child->onOwnLine)
-            || ($child instanceof SlotNode && $child->onOwnLine);
+            || ($child instanceof SlotNode && $child->onOwnLine)
+            || ($child instanceof WidgetNode && $child->onOwnLine);
     }
 
     /**
@@ -256,7 +258,7 @@ final class Executor
 
             $context->set($node->path, $value);
 
-            return $this->valueToString($value);
+            return Output::emit($value, $this->outputMode);
         }
 
         // Regular variable output
@@ -267,8 +269,9 @@ final class Executor
             $value = $this->applyFilter($filter, $value, $context);
         }
 
-        // Convert to string
-        return $this->valueToString($value);
+        // Encode unless the value declared itself HTML (a widget result,
+        // a host-supplied RenderedHtml, or the `raw` filter). See Output.
+        return Output::emit($value, $this->outputMode);
     }
 
     /**
@@ -514,6 +517,13 @@ final class Executor
      * template-level {def:} assignments.
      *
      * If the constant is not found, returns empty string (silent -- no exception).
+     *
+     * Encoded like any other value. A provider that genuinely contributes
+     * markup says so by handing back a {@see HtmlSafe} -- there is no
+     * `raw` position in `{const:name}`'s grammar, and giving constants a
+     * blanket exemption would make "platform-supplied" mean "trusted",
+     * which it does not: a constant can carry a site name or a tagline
+     * that someone typed into an admin form.
      */
     private function executeConst(ConstNode $node, Context $context): string
     {
@@ -523,28 +533,40 @@ final class Executor
             return '';
         }
 
-        return match (true) {
+        if ($value instanceof HtmlSafe) {
+            return (string) $value;
+        }
+
+        return Output::emit(match (true) {
             is_bool($value) => $value ? 'true' : 'false',
             is_int($value) || is_float($value) => (string) $value,
             is_string($value) => $value,
             $value instanceof Stringable => (string) $value,
             $value instanceof DateTimeInterface => $value->format('Y-m-d'),
             default => '',
-        };
+        }, $this->outputMode);
     }
 
     /**
      * Execute widget node -- delegates to WidgetRegistry.
      *
      * Graceful degradation: returns '' when no registry, widget not
-     * found, or the renderer returned null. Stringifies the renderer's
-     * Stringable result at the concat boundary.
+     * found, or the renderer returned null.
+     *
+     * Encoding follows the same rule as every other emitted value, and
+     * for the same reason: it has to agree with what
+     * `{def:x=widget:...}{var:x}` does, and that path cannot know where
+     * the value in the context came from. So markup declares itself
+     * here too -- a renderer returning {@see WidgetView} (rendered
+     * through a partial) or {@see RenderedHtml} reaches the page
+     * untouched, and anything else is a value. Every renderer in the
+     * platform already returns one of the two.
      */
     private function executeWidget(WidgetNode $node, Context $context): string
     {
         $result = $this->resolveWidgetRaw($node, $context);
 
-        return null === $result ? '' : (string) $result;
+        return null === $result ? '' : Output::emit($result, $this->outputMode);
     }
 
     /**
@@ -563,11 +585,25 @@ final class Executor
      * get the system default regardless of the language resolved for them. So a
      * render that knows who it is for says so, and one that does not keeps the
      * ambient behaviour unchanged.
+     *
+     * **Encoding.** A catalogue entry is content, and the people who edit
+     * one are translators -- not necessarily the people trusted with the
+     * page's markup. So a translated string is encoded by default, and
+     * `{t:`key` raw}` is how a template opts one back into markup.
+     *
+     * The two modes encode different things, and never both:
+     *   - default -- `trans()` runs on raw params and the WHOLE result is
+     *     encoded once. Catalogue markup shows as text; a hostile param
+     *     cannot inject, because it sits inside what got encoded.
+     *   - `raw`   -- the catalogue text is trusted, so each PARAM is
+     *     encoded before substitution instead. Markup in the sentence
+     *     renders; markup in a value does not.
+     * Encoding in both places would double-encode every placeholder.
      */
     private function executeTranslate(TranslateNode $node, Context $context): string
     {
         if (null === $this->translator) {
-            return $node->key;
+            return $this->encodeTranslated($node->key, $node->raw);
         }
 
         $params = [];
@@ -579,12 +615,31 @@ final class Executor
             // Template author writes `count=3`; catalog message contains
             // `%count%`; we bridge here so neither side needs to think
             // about the other's syntax.
-            $params['%' . $name . '%'] = is_scalar($resolved) || $resolved instanceof Stringable
+            $text = is_scalar($resolved) || $resolved instanceof Stringable
                 ? (string) $resolved
                 : '';
+            $params['%' . $name . '%'] = $node->raw && !($resolved instanceof HtmlSafe)
+                ? $this->encodeTranslated($text, raw: false)
+                : $text;
         }
 
-        return $this->translator->trans($node->key, $params, $node->domain, self::localeOf($context));
+        $translated = $this->translator->trans($node->key, $params, $node->domain, self::localeOf($context));
+
+        return $this->encodeTranslated($translated, $node->raw);
+    }
+
+    /**
+     * Encode a translated fragment for the render's output mode.
+     *
+     * `$raw` means the template asked for the catalogue entry as markup.
+     * In a non-HTML render there is no markup and nothing to encode, so
+     * the flag is moot -- both branches emit verbatim.
+     */
+    private function encodeTranslated(string $text, bool $raw): string
+    {
+        return $raw || OutputMode::Html !== $this->outputMode
+            ? $text
+            : Output::escape($text);
     }
 
     /**
@@ -688,53 +743,29 @@ final class Executor
 
     /**
      * Apply filter to value.
+     *
+     * HTML-safety propagates along the chain. When the incoming value is
+     * {@see HtmlSafe}, the filter is handed the underlying STRING (most
+     * filters, and every `php.*` function, are typed for scalars and
+     * would TypeError on the wrapper) and the result is re-marked. That
+     * is what keeps `{var:body escape php.nl2br}` working: `escape`
+     * produces safe HTML, `nl2br` adds tags to it, and the result is
+     * emitted once -- not encoded a second time on the way out.
+     *
+     * A filter that returns its own {@see HtmlSafe} keeps it, so `raw`
+     * can mark a value that arrived unsafe.
      */
     private function applyFilter(FilterNode $filter, mixed $value, Context $context): mixed
     {
-        // Resolve filter arguments from context if needed
-        $arguments = array_map(function ($arg) {
-            // If argument is a variable reference, resolve it
-            // For now, just use literal values
-            return $arg;
-        }, $filter->arguments);
-
-        return $this->filters->apply($filter->name, $value, array_values($arguments));
-    }
-
-    /**
-     * Convert value to string for output.
-     */
-    private function valueToString(mixed $value): string
-    {
-        if (null === $value) {
-            return '';
+        $wasSafe = $value instanceof HtmlSafe;
+        if ($wasSafe) {
+            $value = (string) $value;
         }
 
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
+        $result = $this->filters->apply($filter->name, $value, array_values($filter->arguments));
 
-        if (is_scalar($value)) {
-            return (string) $value;
-        }
-
-        if (is_array($value)) {
-            return (string) json_encode($value, JSON_UNESCAPED_UNICODE);
-        }
-
-        if ($value instanceof DateTimeInterface) {
-            return $value->format('Y-m-d H:i:s');
-        }
-
-        if ($value instanceof Stringable) {
-            return (string) $value;
-        }
-
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (string) $value;
-        }
-
-        // Fallback to JSON
-        return (string) json_encode($value, JSON_UNESCAPED_UNICODE);
+        return $wasSafe && !($result instanceof HtmlSafe)
+            ? RenderedHtml::of($result)
+            : $result;
     }
 }

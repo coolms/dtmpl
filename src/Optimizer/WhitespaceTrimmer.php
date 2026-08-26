@@ -13,6 +13,7 @@ use CoolMS\Dtmpl\AST\Node;
 use CoolMS\Dtmpl\AST\SlotNode;
 use CoolMS\Dtmpl\AST\TemplateNode;
 use CoolMS\Dtmpl\AST\TextNode;
+use CoolMS\Dtmpl\AST\WidgetNode;
 
 /**
  * AST pass that collapses orphan blank lines around silent tags and
@@ -129,7 +130,8 @@ final class WhitespaceTrimmer
         return $node instanceof ConditionalNode
             || $node instanceof LoopNode
             || $node instanceof SlotNode
-            || $node instanceof IncludeNode;
+            || $node instanceof IncludeNode
+            || $node instanceof WidgetNode;
     }
 
     /**
@@ -350,6 +352,9 @@ final class WhitespaceTrimmer
         if ($block instanceof IncludeNode) {
             return $this->applyIncludeBorders($block, $prev, $next);
         }
+        if ($block instanceof WidgetNode) {
+            return $this->applyWidgetBorders($block, $prev, $next);
+        }
 
         return [$prev, $block, $next];
     }
@@ -569,6 +574,37 @@ final class WhitespaceTrimmer
             new IncludeNode(
                 $node->templatePath,
                 $node->fills,
+                $node->params,
+                $node->line,
+                $node->column,
+                onOwnLine: true,
+            ),
+            $next,
+        ];
+    }
+
+    /**
+     * Apply on-own-line marking to a WidgetNode.
+     *
+     * A widget has no body, so like an include this is marking only. It
+     * earns the marking because returning `null` is the DOCUMENTED way
+     * for a renderer to say "nothing to show" -- and a widget that shows
+     * nothing was leaving its line's indentation behind, while every
+     * other construct that can render empty collapsed cleanly.
+     *
+     * @return array{?Node, WidgetNode, ?Node}
+     */
+    private function applyWidgetBorders(WidgetNode $node, ?Node $prev, ?Node $next): array
+    {
+        if ($node->onOwnLine || !$this->isStructurallyOnOwnLine($prev, $next)) {
+            return [$prev, $node, $next];
+        }
+
+        return [
+            $prev,
+            new WidgetNode(
+                $node->namespace,
+                $node->widgetId,
                 $node->params,
                 $node->line,
                 $node->column,

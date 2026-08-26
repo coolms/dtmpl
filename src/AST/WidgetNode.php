@@ -13,6 +13,8 @@ final readonly class WidgetNode extends Node
 {
     /**
      * @param array<string, mixed> $params
+     * @param bool                 $onOwnLine the tag was authored alone on its source line, so an
+     *                                        empty render collapses that line -- see WhitespaceTrimmer
      */
     public function __construct(
         public string $namespace, // 'form', 'nav', 'breadcrumbs'
@@ -20,6 +22,7 @@ final readonly class WidgetNode extends Node
         public array $params = [],
         int $line = 0,
         int $column = 0,
+        public bool $onOwnLine = false,
     ) {
         parent::__construct($line, $column);
     }

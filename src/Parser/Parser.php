@@ -22,6 +22,7 @@ use CoolMS\Dtmpl\AST\VariableSource;
 use CoolMS\Dtmpl\AST\VariableSourceType;
 use CoolMS\Dtmpl\AST\WidgetNode;
 use CoolMS\Dtmpl\Exception\SyntaxException;
+use CoolMS\Dtmpl\Lexer\KeywordRegistry;
 use CoolMS\Dtmpl\Lexer\Token;
 use CoolMS\Dtmpl\Lexer\TokenType;
 
@@ -32,6 +33,17 @@ use CoolMS\Dtmpl\Lexer\TokenType;
  */
 final class Parser
 {
+    /**
+     * The complete `{loop:}` modifier vocabulary. `split` takes a value
+     * (`split=`, ``); the other two are bare flags.
+     *
+     * @var list<string>
+     */
+    private const array LOOP_MODIFIERS = ['odd', 'even', 'split'];
+
+    /** Human-readable rendering of {@see LOOP_MODIFIERS} for error messages. */
+    private const string LOOP_MODIFIER_LIST = '`odd`, `even`, `split=`...``';
+
     /** @var Token[] */
     private array $tokens;
 
@@ -136,8 +148,22 @@ final class Parser
             $domain = $this->consume(TokenType::String)->value;
         }
 
+        // A bare `raw` -- an identifier NOT followed by `=` -- opts the
+        // translated string out of output encoding. Distinguished from a
+        // placeholder by the lookahead alone, so a catalogue that really
+        // does have a `%raw%` placeholder can still write `raw=...`.
         $params = [];
+        $raw = false;
         while (!$this->current()->is(TokenType::CloseBrace) && !$this->isEof()) {
+            if ($this->current()->is(TokenType::Identifier)
+                && 'raw' === $this->current()->value
+                && true !== $this->peek(1)?->is(TokenType::Equals)
+            ) {
+                $this->advance();
+                $raw = true;
+                continue;
+            }
+
             $paramKey = $this->consume(TokenType::Identifier)->value;
             $this->consume(TokenType::Equals);
             $params[$paramKey] = $this->current()->is(TokenType::Identifier)
@@ -147,7 +173,7 @@ final class Parser
 
         $this->consume(TokenType::CloseBrace);
 
-        return new TranslateNode($key, $domain, $params, line: $token->line, column: $token->column);
+        return new TranslateNode($key, $domain, $params, $raw, line: $token->line, column: $token->column);
     }
 
     /**
@@ -208,7 +234,19 @@ final class Parser
         $default = null;
         while (!$this->current()->is(TokenType::CloseBrace)) {
             // Check for default value: default=`value`
-            if ($this->current()->is(TokenType::Identifier) && 'default' === $this->current()->value) {
+            //
+            // Gated on the `=` so the identically-named FILTER stays
+            // reachable. Without the lookahead, `default` was claimed
+            // here unconditionally and `{var:count default:`none`}` --
+            // the form both README and docs/filters.md teach -- died on
+            // "Expected EQUALS, got COLON". The two are not synonyms and
+            // both need to work:
+            //   default=`x`  falls back when the PATH IS MISSING
+            //   default:`x`  falls back on any FALSY value (the filter)
+            if ($this->current()->is(TokenType::Identifier)
+                && 'default' === $this->current()->value
+                && true === $this->peek(1)?->is(TokenType::Equals)
+            ) {
                 $this->advance();
                 $this->consume(TokenType::Equals);
                 $default = $this->parseValue();
@@ -243,28 +281,35 @@ final class Parser
             $this->consume(TokenType::Colon);
             $alias = $this->consume(TokenType::Identifier)->value;
         }
-        // Parse loop options (odd, even, split)
+        // Parse loop options. The vocabulary is closed and tiny, and an
+        // unrecognised one used to be skipped in silence -- so
+        // `{loop:items reverse}` rendered a plain loop and the author had
+        // no way to learn the modifier does not exist. Same treatment as
+        // an unknown tag keyword: refuse, and name the nearest real one.
         $odd = false;
         $even = false;
         $split = null;
         while (!$this->current()->is(TokenType::CloseBrace)) {
-            if ($this->current()->is(TokenType::Identifier)) {
-                $option = $this->current()->value;
-                if ('odd' === $option) {
-                    $odd = true;
-                    $this->advance();
-                } elseif ('even' === $option) {
-                    $even = true;
-                    $this->advance();
-                } elseif ('split' === $option) {
-                    $this->advance();
-                    $this->consume(TokenType::Equals);
-                    $split = $this->parseValue();
-                } else {
-                    $this->advance();
-                }
-            } else {
+            $token = $this->current();
+            if (!$token->is(TokenType::Identifier)) {
+                throw new SyntaxException(sprintf('Unexpected `%s` in `{loop:}` -- expected one of %s, or `}`.', '' !== $token->value ? $token->value : $token->type->value, self::LOOP_MODIFIER_LIST), $token->line, $token->column);
+            }
+
+            $option = $token->value;
+            if ('odd' === $option) {
+                $odd = true;
                 $this->advance();
+            } elseif ('even' === $option) {
+                $even = true;
+                $this->advance();
+            } elseif ('split' === $option) {
+                $this->advance();
+                $this->consume(TokenType::Equals);
+                $split = $this->parseValue();
+            } else {
+                $hint = KeywordRegistry::closest($option, self::LOOP_MODIFIERS);
+
+                throw new SyntaxException(sprintf(null !== $hint ? 'Unknown loop modifier `%s`. Did you mean `%s`?' : 'Unknown loop modifier `%s` -- the only modifiers are %3$s.', $option, $hint ?? '', self::LOOP_MODIFIER_LIST), $token->line, $token->column);
             }
         }
         $this->consume(TokenType::CloseBrace);
@@ -309,7 +354,9 @@ final class Parser
             default => null,
         };
         if (null !== $operator) {
+            $operatorToken = $this->current();
             $this->advance();
+            $this->rejectDoubledOperator($operatorToken);
             $rhs = $this->parseComparisonRhs();
             $condition = new ComparisonNode($lhsNode, $operator, $rhs, $token->line, $token->column);
         } else {
@@ -338,6 +385,40 @@ final class Parser
         $this->consume(TokenType::CloseBrace);
 
         return new ConditionalNode($condition, $thenBody, $elseBody, $negate, $token->line, $token->column);
+    }
+
+    /**
+     * Catch a comparison operator followed by a stray `=`.
+     *
+     * DTMPL has no `==`: the lexer emits one Equals per `=`, so `a==b`
+     * reaches the RHS parser as an operator followed by another operator
+     * and used to die on the generic "expected comparison RHS" message,
+     * which names everything except the actual mistake. `==` is the one
+     * error every developer arriving from another language makes, so it
+     * gets its own sentence.
+     *
+     * `> =` / `< =` land here too: the lexer only composes `>=` and `<=`
+     * from ADJACENT characters, so a space between them yields two tokens.
+     */
+    private function rejectDoubledOperator(Token $operatorToken): void
+    {
+        if (!$this->current()->is(TokenType::Equals)) {
+            return;
+        }
+
+        $token = $this->current();
+        $message = match ($operatorToken->type) {
+            TokenType::Equals => '`==` is not an operator in DTMPL -- use a single `=` for equality, e.g. {if:a=b}.',
+            TokenType::Neq => '`!==` is not an operator in DTMPL -- use `!=`.',
+            TokenType::Gt, TokenType::Lt => sprintf(
+                '`%s =` is not an operator -- write `%s=` with no space between the characters.',
+                $operatorToken->value,
+                $operatorToken->value,
+            ),
+            default => sprintf('Unexpected `=` after `%s`.', $operatorToken->value),
+        };
+
+        throw new SyntaxException($message, $token->line, $token->column);
     }
 
     /**
@@ -777,7 +858,8 @@ final class Parser
             $this->consume(TokenType::Dot);
             $filterName .= '.' . $this->consume(TokenType::Identifier)->value;
         }
-        // Parse arguments
+        // Parse arguments. ONE `:` opens the list; `,` separates the
+        // arguments inside it.
         $arguments = [];
         if ($this->current()->is(TokenType::Colon)) {
             $this->consume(TokenType::Colon);
@@ -790,9 +872,34 @@ final class Parser
                     break;
                 }
             } while (!$this->current()->is(TokenType::CloseBrace));
+
+            // A SECOND `:` used to end the argument list quietly: the loop
+            // above broke, and the enclosing tag's filter loop skipped the
+            // leftovers with `advance()`. `truncate:5:`...`` parsed and
+            // dropped the suffix -- no error, wrong output. Published docs
+            // taught exactly that form, so users will write it.
+            if ($this->current()->is(TokenType::Colon)) {
+                $offender = $this->current();
+
+                throw new SyntaxException(sprintf('Filter `%s`: arguments are separated by commas, not colons -- write `%s:%s,...`. The first `:` opens the argument list; every argument after it is separated by `,`.', $filterName, $filterName, $this->describeValue($arguments[0] ?? null)), $offender->line, $offender->column);
+            }
         }
 
         return new FilterNode($filterName, $arguments, $token->line, $token->column);
+    }
+
+    /**
+     * Render a parsed argument back to its source spelling, for error
+     * messages that show the author the corrected form.
+     */
+    private function describeValue(mixed $value): string
+    {
+        return match (true) {
+            is_string($value) => '`' . $value . '`',
+            is_bool($value) => $value ? 'true' : 'false',
+            is_int($value) || is_float($value) => (string) $value,
+            default => '...',
+        };
     }
 
     /**
@@ -868,7 +975,6 @@ final class Parser
             if ($this->current()->is(TokenType::Comma)) {
                 $this->advance();
                 // Allow trailing comma
-                // @phpstan-ignore if.alwaysFalse
                 if ($this->current()->is(TokenType::CloseBracket)) {
                     break;
                 }
@@ -961,6 +1067,14 @@ final class Parser
 
     /**
      * Get current token.
+     *
+     * Marked impure because the cursor moves: two calls either side of a
+     * `consume()` return different tokens. Without this, static analysis
+     * memoizes the first result and concludes that a second check of the
+     * same token type "is always true" -- which is exactly the shape of
+     * every look-then-consume-then-look-again loop in this parser.
+     *
+     * @phpstan-impure
      */
     private function current(): Token
     {

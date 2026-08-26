@@ -14,16 +14,23 @@ namespace CoolMS\Dtmpl\AST;
  * matches.
  *
  * Domain defaults to `messages` when unset (Symfony convention).
+ *
+ * `$raw` carries the bare `raw` flag -- `{t:`key` raw}` -- which opts the
+ * catalogue entry out of output encoding. A flag rather than a filter
+ * because `{t:}` has no filter-chain position in the grammar: its tail is
+ * a `key=value` param list.
  */
 final readonly class TranslateNode extends Node
 {
     /**
      * @param array<string, mixed> $params placeholder name -> value, sans `%` wrappers
+     * @param bool                 $raw    emit the translated string as markup instead of encoding it
      */
     public function __construct(
         public string $key,
         public ?string $domain = null,
         public array $params = [],
+        public bool $raw = false,
         int $line = 0,
         int $column = 0,
     ) {

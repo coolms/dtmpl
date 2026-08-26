@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace CoolMS\Dtmpl\Runtime;
 
 use CoolMS\Dtmpl\Exception\SecurityException;
+use CoolMS\Dtmpl\Exception\UnknownFilterException;
 use DateTimeInterface;
-use InvalidArgumentException;
 use NumberFormatter;
 
 /**
@@ -16,6 +16,9 @@ use NumberFormatter;
  */
 final class FilterRegistry
 {
+    /** Namespace that reaches {@see SAFE_PHP_FUNCTIONS}. Reserved -- see {@see register()}. */
+    private const string PHP_PREFIX = 'php.';
+
     private const array SAFE_PHP_FUNCTIONS = [
         // String functions
         'strtoupper', 'strtolower', 'ucfirst', 'ucwords', 'trim', 'ltrim', 'rtrim',
@@ -61,9 +64,21 @@ final class FilterRegistry
 
     /**
      * Register a custom filter.
+     *
+     * The `php.` prefix is reserved. {@see apply()} resolves custom
+     * filters BEFORE the allow-list, so a registration under that prefix
+     * would bind a name whose whole purpose is to promise the opposite --
+     * that what runs is one of the vetted functions in
+     * {@see SAFE_PHP_FUNCTIONS}. Refusing here fails at registration,
+     * with the offending name in hand, rather than at render time inside
+     * whatever template happened to use it.
      */
     public function register(string $name, callable $filter): void
     {
+        if (str_starts_with($name, self::PHP_PREFIX)) {
+            throw new SecurityException(sprintf('Cannot register the filter "%s": the "%s" prefix is reserved for the built-in allow-list of safe PHP functions. Register it under a name of its own.', $name, self::PHP_PREFIX));
+        }
+
         $this->filters[$name] = $filter;
     }
 
@@ -78,10 +93,8 @@ final class FilterRegistry
         }
 
         // Check PHP functions
-        if (str_starts_with($name, 'php.')) {
-            $funcName = substr($name, 4);
-
-            return isset($this->phpFunctions[$funcName]);
+        if (str_starts_with($name, self::PHP_PREFIX)) {
+            return isset($this->phpFunctions[substr($name, strlen(self::PHP_PREFIX))]);
         }
 
         return false;
@@ -100,8 +113,8 @@ final class FilterRegistry
         }
 
         // PHP function
-        if (str_starts_with($name, 'php.')) {
-            $funcName = substr($name, 4);
+        if (str_starts_with($name, self::PHP_PREFIX)) {
+            $funcName = substr($name, strlen(self::PHP_PREFIX));
 
             if (!isset($this->phpFunctions[$funcName])) {
                 throw new SecurityException("PHP function '$funcName' is not allowed");
@@ -117,7 +130,7 @@ final class FilterRegistry
             return $callableFn($value, ...$arguments);
         }
 
-        throw new InvalidArgumentException("Unknown filter: $name");
+        throw new UnknownFilterException("Unknown filter: $name");
     }
 
     /**
@@ -128,7 +141,7 @@ final class FilterRegistry
     public function getAvailableFilters(): array
     {
         $filters = array_keys($this->filters);
-        $phpFilters = array_map(fn ($f) => 'php.' . $f, array_keys($this->phpFunctions));
+        $phpFilters = array_map(fn ($f) => self::PHP_PREFIX . $f, array_keys($this->phpFunctions));
 
         return array_merge($filters, $phpFilters);
     }
@@ -154,12 +167,17 @@ final class FilterRegistry
             return mb_substr($str, 0, $length) . $suffix;
         });
 
-        // Escape for HTML
-        $this->register('escape', fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'));
-        $this->register('e', fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'));
+        // Escape for HTML. Returns an HtmlSafe so the encoded string is
+        // not encoded a SECOND time on the way out -- `{var:x escape}`
+        // must produce `&lt;b&gt;`, never `&amp;lt;b&amp;gt;`.
+        $escape = static fn ($v) => new RenderedHtml(Output::escape(Output::stringify($v)));
+        $this->register('escape', $escape);
+        $this->register('e', $escape);
 
-        // Raw (no escaping - dangerous!)
-        $this->register('raw', fn ($v) => $v);
+        // Raw -- the opt-out from output encoding. Marks the value as
+        // markup so Output::emit() passes it through untouched.
+        // Dangerous by design: only for HTML you control.
+        $this->register('raw', static fn ($v) => RenderedHtml::of($v));
 
         // Default value
         $this->register('default', fn ($v, $default = '') => $v ?: $default);

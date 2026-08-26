@@ -13,6 +13,7 @@ use CoolMS\Dtmpl\Parser\Parser;
 use CoolMS\Dtmpl\Runtime\ConstantProviderInterface;
 use CoolMS\Dtmpl\Runtime\Executor;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
+use CoolMS\Dtmpl\Runtime\OutputMode;
 use CoolMS\Dtmpl\Runtime\TemplateCompilerInterface;
 use CoolMS\Dtmpl\Widget\WidgetRegistry;
 use Exception;
@@ -28,6 +29,23 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  */
 final class DtmplEngine implements TemplateCompilerInterface
 {
+    /**
+     * Schema version of the serialized AST, part of every cache key.
+     *
+     * The persistent cache stores compiled {@see TemplateNode} object
+     * graphs. Keying them on the template SOURCE alone was wrong across
+     * an engine upgrade: add a property to any AST node and yesterday's
+     * serialized graph deserializes into today's class without it, so
+     * the first read after deploy dies on "typed property ... must not
+     * be accessed before initialization" -- on every page, until the TTL
+     * expires or someone thinks to purge the pool by hand.
+     *
+     * **Bump this whenever an AST node's shape changes** (a new
+     * constructor property, a removed one, a changed type). Old entries
+     * then age out under their own keys instead of being read back.
+     */
+    private const string AST_VERSION = '2';
+
     private readonly Lexer $lexer;
     private readonly Parser $parser;
     private readonly WhitespaceTrimmer $whitespaceTrimmer;
@@ -52,6 +70,7 @@ final class DtmplEngine implements TemplateCompilerInterface
         private readonly ?TemplateLoaderInterface $loader = null,
         private readonly ?WidgetRegistry $widgets = null,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly OutputMode $outputMode = OutputMode::Html,
     ) {
         $this->lexer = new Lexer($encoding);
         $this->parser = new Parser();
@@ -62,6 +81,7 @@ final class DtmplEngine implements TemplateCompilerInterface
             compiler: $this,
             widgets: $widgets,
             translator: $translator,
+            outputMode: $outputMode,
         );
     }
 
@@ -130,20 +150,20 @@ final class DtmplEngine implements TemplateCompilerInterface
      */
     public function withLoader(TemplateLoaderInterface $loader): self
     {
-        $clone = new self(
-            cache: $this->cache,
-            debug: $this->debug,
-            encoding: $this->encoding,
-            loader: $loader,
-            widgets: $this->widgets,
-            // A host that renders every layout through a theme-bound clone --
-            // mail composition typically does -- would find `{t:}` inert in
-            // exactly the templates it exists for if this were dropped.
-            translator: $this->translator,
-        );
-        $clone->constantProviders = $this->constantProviders;
+        return $this->cloneWith(loader: $loader);
+    }
 
-        return $clone;
+    /**
+     * Return a new engine instance producing `$mode` instead of HTML.
+     *
+     * For a host pointing the engine at something that is not a web page
+     * -- a filename pattern, a spreadsheet cell, an OOXML run -- where
+     * HTML-encoding a value corrupts it. Chosen once, at the seam that
+     * knows what it is building, rather than per template or per value.
+     */
+    public function withOutputMode(OutputMode $mode): self
+    {
+        return $this->cloneWith(outputMode: $mode);
     }
 
     /**
@@ -158,14 +178,20 @@ final class DtmplEngine implements TemplateCompilerInterface
         if (isset($this->compiledCache[$cacheKey])) {
             return $this->compiledCache[$cacheKey];
         }
-        // Check persistent cache
+        $itemKey = 'dtmpl_' . self::AST_VERSION . '_' . $cacheKey;
+        // Check persistent cache. The stored value is type-checked
+        // rather than trusted: a pool is shared infrastructure, and a
+        // key collision or a half-written entry must degrade to a
+        // recompile, not to a TypeError deep in the Executor.
         if (null !== $this->cache) {
-            $item = $this->cache->getItem('dtmpl_' . $cacheKey);
+            $item = $this->cache->getItem($itemKey);
             if ($item->isHit()) {
                 $ast = $item->get();
-                $this->compiledCache[$cacheKey] = $ast;
+                if ($ast instanceof TemplateNode) {
+                    $this->compiledCache[$cacheKey] = $ast;
 
-                return $ast;
+                    return $ast;
+                }
             }
         }
         // Compile template
@@ -175,7 +201,7 @@ final class DtmplEngine implements TemplateCompilerInterface
         // Store in caches
         $this->compiledCache[$cacheKey] = $ast;
         if (null !== $this->cache) {
-            $item = $this->cache->getItem('dtmpl_' . $cacheKey);
+            $item = $this->cache->getItem($itemKey);
             $item->set($ast);
             $item->expiresAfter(3600); // 1 hour
             $this->cache->save($item);
@@ -262,6 +288,35 @@ final class DtmplEngine implements TemplateCompilerInterface
             'in_memory_count' => count($this->compiledCache),
             'persistent_enabled' => null !== $this->cache,
         ];
+    }
+
+    /**
+     * Copy this engine, overriding the named settings.
+     *
+     * Every `with*()` goes through here so a setting can never be
+     * dropped by one of them: `withLoader()` used to rebuild the engine
+     * by listing its arguments, and each new constructor argument had to
+     * be remembered in two places. The translator's own docblock records
+     * what happened the time it was not -- `{t:}` went inert in exactly
+     * the templates it exists for, because mail composition renders
+     * through a theme-bound clone.
+     */
+    private function cloneWith(
+        ?TemplateLoaderInterface $loader = null,
+        ?OutputMode $outputMode = null,
+    ): self {
+        $clone = new self(
+            cache: $this->cache,
+            debug: $this->debug,
+            encoding: $this->encoding,
+            loader: $loader ?? $this->loader,
+            widgets: $this->widgets,
+            translator: $this->translator,
+            outputMode: $outputMode ?? $this->outputMode,
+        );
+        $clone->constantProviders = $this->constantProviders;
+
+        return $clone;
     }
 
     /**

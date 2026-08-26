@@ -61,15 +61,34 @@ in the renderer -- so a theme can restyle a widget without touching PHP.
 {widget:comments id=`42`}
 ```
 
-Everything after the widget name reaches `__invoke` as `$params`. Values are
-escaped like any other output; a widget that needs raw HTML has to opt in
-deliberately.
+Everything after the widget name reaches `__invoke` as `$params`, as the PHP
+values the template wrote -- they are template literals, not context data, and
+are handed over unchanged.
+
+## Encoding
+
+A widget's **rendered output is markup** and reaches the page unencoded. That is
+the contract: a widget exists to produce a component, and its renderer owns the
+HTML.
+
+A widget's **data is not**. Reading a field off the result is reading a value,
+and it is encoded like any other:
+
+```
+{widget:comments}                     <- markup, emitted as-is
+{var:comments.total}                  <- a value, encoded
+```
+
+So a renderer that builds HTML in PHP is responsible for encoding what it
+interpolates. The better answer is usually to return a `WidgetView` instead and
+let a partial do it, where `{var:}` handles encoding for you.
 
 ## Two rules worth keeping
 
 **Return `null`, don't return an empty string.** Null lets the caller decide
 whether the surrounding markup should appear at all. An empty string leaves an
-empty wrapper behind.
+empty wrapper behind -- and a widget that returns null on a line of its own
+takes that line with it, rather than leaving the indentation as a blank line.
 
 **Don't query per element.** A widget runs once per occurrence, but a widget
 inside a `{loop:}` runs once per iteration. Load in bulk before the loop, or the
