@@ -20,7 +20,7 @@ use Stringable;
  * (a view-model) instead of building an HTML string in PHP, and the
  * Executor renders that partial through the active theme's loader. This
  * is what lets widget renderers stay logic-only while the markup lives
- * in DTMPL (with any `<script>` in a `{raw}` block).
+ * in DTMPL (with any `<script>` in a `{verbatim}` block).
  */
 final class WidgetViewTest extends TestCase
 {
@@ -54,12 +54,12 @@ final class WidgetViewTest extends TestCase
     }
 
     #[Test]
-    public function widgetViewPartialMayCarryARawScriptBlock(): void
+    public function widgetViewPartialMayCarryAVerbatimScriptBlock(): void
     {
         // The combined payoff: a widget's view is a DTMPL partial whose
-        // JS lives in a verbatim {raw} block -- no HTML/JS in PHP.
+        // JS lives in a {verbatim} block -- no HTML/JS in PHP.
         $loader = $this->loaderWith([
-            'partials/form.html.dtmpl' => '<form data-id="{var:id}"></form>{raw}<script>if(x){go({a:1})}</script>{endraw}',
+            'partials/form.html.dtmpl' => '<form data-id="{var:id}"></form>{verbatim}<script>if(x){go({a:1})}</script>{endverbatim}',
         ]);
         $engine = new DtmplEngine(
             loader: $loader,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CoolMS\Dtmpl\Lexer;
 
+use CoolMS\Dtmpl\Exception\RemovedKeywordException;
 use CoolMS\Dtmpl\Exception\SyntaxException;
 
 /**
@@ -39,6 +40,14 @@ final class Lexer
         't' => TokenType::Translate,
     ];
 
+    /**
+     * Delimiters of the verbatim block. Every scan offset below is
+     * derived from these, so the two stay in step by construction.
+     */
+    private const string VERBATIM_OPEN = 'verbatim';
+
+    private const string VERBATIM_CLOSE = 'endverbatim';
+
     private const array BOOLEAN_LITERALS = [
         'true' => true,
         'false' => false,
@@ -73,18 +82,18 @@ final class Lexer
         $this->tokens = [];
 
         while (!$this->isEof()) {
-            // `{raw}...{endraw}` is a verbatim block: its interior is
-            // emitted literally and never tokenized, so `<script>`/`<style>`
+            // `{verbatim}...{endverbatim}` is a verbatim block: its interior
+            // is emitted literally and never tokenized, so `<script>`/`<style>`
             // blocks, JSON, and DTMPL code samples survive intact. Checked
-            // first so the `{raw}` marker never reaches the tag scanner.
+            // first so the marker never reaches the tag scanner.
             //
             // Otherwise `{` enters tag mode only when followed by a
             // registered keyword -- every other `{...` (whitespace, digits,
             // symbols, unrelated words) stays literal so code samples / JSON
             // / set notation in template content survive the lex pass.
             // `{{` is the escape sequence and is handled by scanText.
-            if ($this->isRawBlockStart()) {
-                $this->scanRawBlock();
+            if ($this->isVerbatimBlockStart()) {
+                $this->scanVerbatimBlock();
             } elseif ($this->isTagStart()) {
                 $this->scanTag();
             } else {
@@ -95,6 +104,22 @@ final class Lexer
         $this->tokens[] = new Token(TokenType::Eof, '', $this->position, $this->line, $this->column);
 
         return $this->tokens;
+    }
+
+    /**
+     * Offset of the `}` in `{keyword}`, measured from the `{`.
+     */
+    private static function closingBraceOffset(string $keyword): int
+    {
+        return 1 + strlen($keyword);
+    }
+
+    /**
+     * Character count of `{keyword}`, including both braces.
+     */
+    private static function markerLength(string $keyword): int
+    {
+        return 2 + strlen($keyword);
     }
 
     /**
@@ -114,42 +139,39 @@ final class Lexer
     }
 
     /**
-     * True iff the cursor sits on a literal `{raw}` (the exact form,
+     * True iff the cursor sits on a literal `{verbatim}` (the exact form,
      * no arguments). Opens a verbatim block whose interior bypasses
-     * tokenization -- see {@see scanRawBlock()}. Checked before
+     * tokenization -- see {@see scanVerbatimBlock()}. Checked before
      * {@see isTagStart()} so the marker never reaches the tag scanner.
      *
-     * The exact-form requirement (`}` directly after `raw`) keeps a
-     * stray `{rawish...` or `{raw something}` out of verbatim mode -- those
-     * fall through to the ordinary literal-text path.
+     * The exact-form requirement (`}` directly after the keyword) keeps a
+     * stray `{verbatimish...` or `{verbatim something}` out of verbatim
+     * mode -- those fall through to the ordinary literal-text path.
      */
-    private function isRawBlockStart(): bool
+    private function isVerbatimBlockStart(): bool
     {
         if ('{' !== $this->peek() || '{' === $this->peek(1)) {
             return false;
         }
 
-        // `{raw}` -- `{`=0, `raw`=1..3, `}`=4.
-        return 'raw' === $this->peekKeywordCandidate() && '}' === $this->peek(4);
+        return self::VERBATIM_OPEN === $this->peekKeywordCandidate()
+            && '}' === $this->peek(self::closingBraceOffset(self::VERBATIM_OPEN));
     }
 
     /**
-     * Scan a `{raw}...{endraw}` verbatim block. Everything between the
+     * Scan a `{verbatim}...{endverbatim}` block. Everything between the
      * markers is emitted as a single literal {@see TokenType::Text}
      * token -- the interior is never tokenized, so braces, DTMPL keyword
      * lookalikes, `<script>`/`<style>` blocks, and DTMPL code samples
-     * all survive untouched. The FIRST `{endraw}` terminates; an
+     * all survive untouched. The FIRST `{endverbatim}` terminates; an
      * unterminated block is a hard error.
      *
-     * Reached only via {@see isRawBlockStart()}, which guarantees the
-     * cursor sits on a literal `{raw}`.
+     * Reached only via {@see isVerbatimBlockStart()}, which guarantees
+     * the cursor sits on a literal `{verbatim}`.
      */
-    private function scanRawBlock(): void
+    private function scanVerbatimBlock(): void
     {
-        // Consume the opening `{raw}` (5 chars: `{ r a w }`).
-        for ($i = 0; $i < 5; ++$i) {
-            $this->advance();
-        }
+        $this->skip(self::markerLength(self::VERBATIM_OPEN));
 
         $start = $this->position;
         $startLine = $this->line;
@@ -157,20 +179,16 @@ final class Lexer
         $text = '';
 
         while (!$this->isEof()) {
-            // Terminator: a literal `{endraw}` -- `{`=cursor, `endraw`=1..6,
-            // `}`=7. A near-miss like `{endrawer}` or `{endraw ` (no `}`)
+            // A near-miss like `{endverbatimer}` or `{endverbatim ` (no `}`)
             // is not a terminator and stays part of the verbatim body.
             if ('{' === $this->peek()
-                && 'endraw' === $this->peekKeywordCandidate()
-                && '}' === $this->peek(7)
+                && self::VERBATIM_CLOSE === $this->peekKeywordCandidate()
+                && '}' === $this->peek(self::closingBraceOffset(self::VERBATIM_CLOSE))
             ) {
                 if ('' !== $text) {
                     $this->tokens[] = new Token(TokenType::Text, $text, $start, $startLine, $startColumn);
                 }
-                // Consume `{endraw}` (8 chars).
-                for ($i = 0; $i < 8; ++$i) {
-                    $this->advance();
-                }
+                $this->skip(self::markerLength(self::VERBATIM_CLOSE));
 
                 return;
             }
@@ -178,7 +196,17 @@ final class Lexer
             $text .= $this->advance();
         }
 
-        throw new SyntaxException('Unclosed `{raw}` block -- expected a matching `{endraw}`.', $startLine, $startColumn);
+        throw new SyntaxException(sprintf('Unclosed `{%s}` block -- expected a matching `{%s}`.', self::VERBATIM_OPEN, self::VERBATIM_CLOSE), $startLine, $startColumn);
+    }
+
+    /**
+     * Advance the cursor by `$count` characters.
+     */
+    private function skip(int $count): void
+    {
+        for ($i = 0; $i < $count; ++$i) {
+            $this->advance();
+        }
     }
 
     /**
@@ -248,11 +276,11 @@ final class Lexer
             }
 
             if ('{' === $ch) {
-                // A `{raw}` verbatim block ends the current text run --
-                // hand back to the dispatcher, which calls scanRawBlock().
+                // A verbatim block ends the current text run -- hand back
+                // to the dispatcher, which calls scanVerbatimBlock().
                 // (Checked here too, not just in tokenize(), because a
-                // text run can swallow right up to a `{raw}` mid-stream.)
-                if ($this->isRawBlockStart()) {
+                // text run can swallow right up to a marker mid-stream.)
+                if ($this->isVerbatimBlockStart()) {
                     break;
                 }
                 $candidate = $this->peekKeywordCandidate();
@@ -260,6 +288,14 @@ final class Lexer
                     break;
                 }
                 if ('' !== $candidate) {
+                    // A renamed keyword is refused where it used to be
+                    // accepted, and nowhere else: the `}` must sit at the
+                    // same offset the old marker required, so `{raw x}`
+                    // and `{rawish}` stay literal text.
+                    $removed = KeywordRegistry::findRemoved($candidate);
+                    if (null !== $removed && '}' === $this->peek(self::closingBraceOffset($candidate))) {
+                        throw RemovedKeywordException::forKeyword($candidate, $removed, $this->line, $this->column);
+                    }
                     $hint = KeywordRegistry::findResemblance($candidate);
                     if (null !== $hint) {
                         throw new SyntaxException(sprintf('Unknown DTMPL keyword `%s`. Did you mean `%s`?', $candidate, $hint), $this->line, $this->column);
@@ -405,6 +441,15 @@ final class Lexer
                 } else {
                     $this->scanNumber();
                 }
+            } elseif ('-' === $char && $this->isDigit($this->peek(1)) && !$this->isScanningWidgetIdSegment()) {
+                // A leading `-` on a number literal. Unambiguous: DTMPL
+                // has no arithmetic operators, and a general identifier
+                // cannot contain `-` (only a widget id segment can, which
+                // the guard above excludes). Without this branch
+                // `{def:offset=-5}` and `{var:n add:-5}` died on the
+                // catch-all "unexpected character" -- a negative had to
+                // arrive as a backtick string or through the context.
+                $this->scanNumber();
             } elseif ($this->isAlpha($char) || '_' === $char || '@' === $char) {
                 // `@` opens an entity-alias identifier (a later extension). Lives in tag mode only; `scanText` continues
                 // to treat `@` as literal so email addresses and prose
@@ -560,7 +605,14 @@ final class Lexer
     }
 
     /**
-     * Scan number literal.
+     * Scan number literal, with an optional leading `-`.
+     *
+     * The sign is consumed here rather than treated as an operator
+     * because DTMPL has no arithmetic: a `-` in tag mode is only ever
+     * part of a number (or of a widget id segment, which
+     * {@see scanIdentifier()} owns). Only the FIRST character may be a
+     * sign -- `5-3` still scans as one malformed number and fails at the
+     * parser, exactly as `5..3` does.
      */
     private function scanNumber(): void
     {
@@ -568,6 +620,10 @@ final class Lexer
         $startLine = $this->line;
         $startColumn = $this->column;
         $number = '';
+
+        if ('-' === $this->peek()) {
+            $number .= $this->advance();
+        }
 
         while (!$this->isEof() && ($this->isDigit($this->peek()) || '.' === $this->peek())) {
             $number .= $this->advance();

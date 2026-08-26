@@ -304,6 +304,33 @@ final class WhitespaceTrimmerTest extends TestCase
     }
 
     /**
+     * A widget that renders nothing takes its line with it.
+     *
+     * `null` is the documented way for a renderer to say "nothing to
+     * show", and every OTHER construct that can render empty already
+     * collapsed cleanly -- a widget was the one that left its
+     * indentation behind as a stray blank line.
+     */
+    public function testNullWidgetAloneOnLineCollapses(): void
+    {
+        // No registry wired at all, so the widget resolves to nothing --
+        // the same runtime path as a renderer returning null.
+        $template = "before\n  {widget:nothing:here}\nafter";
+
+        self::assertSame("before\nafter", $this->engine->render($template));
+    }
+
+    /**
+     * An inline widget that renders nothing leaves its surrounding text alone.
+     */
+    public function testNullWidgetInlinePreservesItsLine(): void
+    {
+        $template = 'before {widget:nothing:here} after';
+
+        self::assertSame('before  after', $this->engine->render($template));
+    }
+
+    /**
      * A self-closing `{slot:}` with an inline default attribute renders the default as its single-line value.
      */
     public function testSlotInlineDefaultUnchanged(): void
