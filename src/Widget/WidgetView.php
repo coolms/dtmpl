@@ -16,7 +16,7 @@ use function sprintf;
  * PHP via sprintf/heredoc) lets a widget stay a thin **view-model**: it
  * computes data and names a theme partial, and the DTMPL Executor renders
  * that partial through the active theme's loader -- the same machinery an
- * `{include}` uses. The partial owns the markup (and any `{raw}<script>`),
+ * `{include}` uses. The partial owns the markup (and any `{verbatim}<script>`),
  * so HTML/JS never live in PHP.
  *
  * It implements {@see Stringable} only to satisfy

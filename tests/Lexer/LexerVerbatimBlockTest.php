@@ -12,14 +12,14 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * `{raw}...{endraw}` verbatim-block coverage. The interior is emitted as
+ * `{verbatim}...{endverbatim}` block coverage. The interior is emitted as
  * one literal Text token and never tokenized, so `<script>`/`<style>`
  * blocks, JSON, minified code, and DTMPL syntax samples survive intact --
  * the escape hatch the single-brace `{{`/`}}` escape couldn't give a
- * whole region. The FIRST `{endraw}` terminates; an unterminated block
+ * whole region. The FIRST `{endverbatim}` terminates; an unterminated block
  * is a hard error.
  */
-final class LexerRawBlockTest extends TestCase
+final class LexerVerbatimBlockTest extends TestCase
 {
     private Lexer $lexer;
 
@@ -27,20 +27,20 @@ final class LexerRawBlockTest extends TestCase
     public function scriptWithBracesSurvivesVerbatim(): void
     {
         $js = "<script>(function(){var x={a:1};if(x.a){console.log('hi')}})();</script>";
-        $input = "{raw}$js{endraw}";
+        $input = "{verbatim}$js{endverbatim}";
 
         // The interior is reproduced byte-for-byte; the markers vanish.
         self::assertSame($js, $this->renderText($this->lexer->tokenize($input)));
     }
 
     #[Test]
-    public function dtmplKeywordAdjacenciesInsideRawAreLiteral(): void
+    public function dtmplKeywordAdjacenciesInsideVerbatimAreLiteral(): void
     {
-        // Every one of these would mis-lex or throw OUTSIDE a raw block:
+        // Every one of these would mis-lex or throw OUTSIDE a verbatim block:
         // `{if:` is a tag, `${t}` hits the single-letter translate keyword,
         // `}else{` glues a brace to a keyword.
         $tricky = 'if(a){var b=1}else{b=2} `${t}` {if:x}{var:y}';
-        $input = "{raw}$tricky{endraw}";
+        $input = "{verbatim}$tricky{endverbatim}";
 
         self::assertSame($tricky, $this->renderText($this->lexer->tokenize($input)));
         // And nothing inside became a real tag.
@@ -48,20 +48,20 @@ final class LexerRawBlockTest extends TestCase
     }
 
     #[Test]
-    public function firstEndrawTerminates(): void
+    public function firstEndverbatimTerminates(): void
     {
-        $input = '{raw}A{endraw}B{raw}C{endraw}';
+        $input = '{verbatim}A{endverbatim}B{verbatim}C{endverbatim}';
 
-        // 'A' and 'C' are raw interiors; 'B' is ordinary literal text
+        // 'A' and 'C' are verbatim interiors; 'B' is ordinary literal text
         // between two blocks. All three are Text; no tags anywhere.
         self::assertSame('ABC', $this->renderText($this->lexer->tokenize($input)));
         self::assertSame(0, $this->countTagTokens($this->lexer->tokenize($input)));
     }
 
     #[Test]
-    public function tagsOutsideRawStillTokenizeWhileInteriorStaysLiteral(): void
+    public function tagsOutsideVerbatimStillTokenizeWhileInteriorStaysLiteral(): void
     {
-        $tokens = $this->lexer->tokenize('{var:before}{raw}{var:inside}{endraw}{var:after}');
+        $tokens = $this->lexer->tokenize('{var:before}{verbatim}{var:inside}{endverbatim}{var:after}');
 
         // Two real {var:...} tags (before + after); the middle is literal.
         self::assertSame(2, $this->countKeyword($tokens, TokenType::Var));
@@ -69,30 +69,30 @@ final class LexerRawBlockTest extends TestCase
     }
 
     #[Test]
-    public function nearMissEndrawDoesNotTerminateEarly(): void
+    public function nearMissEndverbatimDoesNotTerminateEarly(): void
     {
-        // `{endrawer}` is not the terminator; the real `{endraw}` is.
-        $input = '{raw}keep {endrawer} going{endraw}';
+        // `{endverbatimer}` is not the terminator; the real `{endverbatim}` is.
+        $input = '{verbatim}keep {endverbatimer} going{endverbatim}';
 
-        self::assertSame('keep {endrawer} going', $this->renderText($this->lexer->tokenize($input)));
+        self::assertSame('keep {endverbatimer} going', $this->renderText($this->lexer->tokenize($input)));
     }
 
     #[Test]
-    public function unclosedRawBlockThrows(): void
+    public function unclosedVerbatimBlockThrows(): void
     {
         $this->expectException(SyntaxException::class);
-        $this->expectExceptionMessage('Unclosed `{raw}` block');
-        $this->lexer->tokenize('{raw}<script>oops</script>');
+        $this->expectExceptionMessage('Unclosed `{verbatim}` block');
+        $this->lexer->tokenize('{verbatim}<script>oops</script>');
     }
 
     #[Test]
-    public function nonExactRawMarkerIsLiteralNotABlock(): void
+    public function nonExactVerbatimMarkerIsLiteralNotABlock(): void
     {
-        // `{raw }` (trailing space) and `{rawish}` are NOT the verbatim
+        // `{verbatim }` (trailing space) and `{verbatimish}` are NOT the verbatim
         // marker -- they fall through to ordinary literal text, and the
-        // `{endraw}` that follows is itself just literal text (no open
+        // `{endverbatim}` that follows is itself just literal text (no open
         // block to close), so nothing is consumed as a block.
-        $input = '{raw }text';
+        $input = '{verbatim }text';
 
         self::assertSame($input, $this->renderText($this->lexer->tokenize($input)));
     }

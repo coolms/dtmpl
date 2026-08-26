@@ -76,7 +76,7 @@ no `{/keyword}` form.
 | translation, as markup | ``{t:`terms`:`mail` raw}`` |
 | widget | `{widget:comments}` or `{widget:document:my-slug}` |
 | unencoded value | `{var:page.body raw}` |
-| verbatim block | `{raw}` ... `{endraw}` (not tokenized -- for code samples) |
+| verbatim block | `{verbatim}` ... `{endverbatim}` (not tokenized -- for code samples) |
 
 String literals use **backticks**, so a template never fights HTML quoting.
 
@@ -126,6 +126,10 @@ throws makes that hostile.
 
 ### Upgrading from 1.x
 
+Two breaking changes, both in 2.0.
+
+#### 1. Output is encoded
+
 **1.x did not encode anything**, despite this section having claimed otherwise.
 Every value your templates emit is now encoded, so a template relying on a
 context value carrying markup renders that markup as text.
@@ -156,6 +160,33 @@ use CoolMS\Dtmpl\Runtime\RenderedHtml;
 
 $engine->render($template, ['banner' => new RenderedHtml($trustedHtml)]);
 ```
+
+#### 2. `{raw}` is now `{verbatim}`
+
+The verbatim block and the `raw` filter used to share a word while doing
+unrelated things -- one suppresses *parsing* of a region of source, the other
+suppresses *encoding* of a value. The block is renamed; the filter is not.
+
+```
+{verbatim}<script>if (a < b) { go({ready: true}); }</script>{endverbatim}
+```
+
+`{raw}` and `{endraw}` no longer render. They raise a syntax error naming the
+replacement, so nothing degrades into literal text:
+
+<!-- doctest:skip -->
+```
+`{raw}` was renamed to `{verbatim}` in DTMPL 2.0. Use `{verbatim}` ...
+`{endverbatim}`. The `raw` *filter* is unrelated and unchanged.
+```
+
+**Every `raw` filter usage stays exactly as it is** -- `{var:x raw}` and
+`{t:key raw}` are untouched by this change.
+
+Template source is not only in your theme directory. Document templates,
+spreadsheet templates and anything a user authored live as content, and the
+engine cannot rewrite those for you -- the error above is what you get, at
+render time, for each one you miss.
 
 ## License
 

@@ -287,17 +287,19 @@ one.
 ## Verbatim blocks
 
 ```
-{raw}
+{verbatim}
     <script>if (a < b) { go({ready: true}); }</script>
-{endraw}
+{endverbatim}
 ```
 
-`{raw}` ... `{endraw}` is a **lexer** instruction: nothing inside it is
-tokenized, so braces, keyword lookalikes and DTMPL code samples survive intact.
-It is for content that must not be *parsed*.
+`{verbatim}` ... `{endverbatim}` is a **lexer** instruction: nothing inside it
+is tokenized, so braces, keyword lookalikes and DTMPL code samples survive
+intact. It is for content that must not be *parsed*.
 
-It is not an escaping control -- there is nothing to escape inside it, because
-nothing in it is a value. For that, see below.
+It is not an encoding control. Nothing inside a verbatim block is a value, so
+there is nothing there to encode -- see [Escaping](#escaping) for that, and
+[the two of them together](#verbatim-is-not-raw) for why they are easy to
+confuse.
 
 ---
 
@@ -349,6 +351,36 @@ markup without the template having to remember `raw`:
 ```php
 $engine->render($template, ['banner' => new RenderedHtml($trustedHtml)]);
 ```
+
+### Verbatim is not raw
+
+The block and the filter are different features that happen to sit near each
+other, and until 2.0 they shared a name. They answer different questions:
+
+| | `{verbatim}` ... `{endverbatim}` | the `raw` filter |
+|---|---|---|
+| acts at | lex time | render time |
+| operates on | a region of template **source** | a single **value** |
+| what it suppresses | parsing | encoding |
+| gets it wrong how | your tags render as their own source | untrusted markup reaches the page |
+
+A single line from the shipped theme uses both, which is the clearest way to
+see that they are unrelated:
+
+<!-- doctest:skip -->
+```
+var experiments = {endverbatim}{var:experiments.configJson raw}{verbatim};
+```
+
+The surrounding `<script>` body is verbatim, so its braces are not tags. The
+JSON is a value, so it needs `raw` to reach the page as JSON rather than as
+`&quot;`-encoded text. Closing the block, emitting the value and reopening the
+block is exactly what that line does.
+
+Reaching for the wrong one fails in opposite directions. `{verbatim}{var:body}{endverbatim}`
+emits the literal characters `{var:body}` -- the value is never looked up.
+`{var:body raw}` inside a `<script>` does not stop the surrounding braces being
+parsed as tags.
 
 Any other object is a value, even one implementing `Stringable`. That default is
 deliberate: entities and value objects are exactly the things most likely to

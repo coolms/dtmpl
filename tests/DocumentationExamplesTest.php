@@ -6,6 +6,7 @@ namespace CoolMS\Dtmpl\Tests;
 
 use CoolMS\Dtmpl\AST\TemplateNode;
 use CoolMS\Dtmpl\DtmplEngine;
+use CoolMS\Dtmpl\Lexer\KeywordRegistry;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -112,6 +113,36 @@ final class DocumentationExamplesTest extends TestCase
     }
 
     #[Test]
+    public function noDocumentedExampleTeachesARemovedKeyword(): void
+    {
+        // A `doctest:skip` fence is exempt from compilation, which is
+        // what lets the upgrade note quote `{raw}`. That exemption must
+        // not become a hiding place for an example still teaching the
+        // old spelling, so the removed spellings are searched for as
+        // WORKING syntax across the whole of every doc, skipped fences
+        // included -- and only the migration prose is allowed to name
+        // them.
+        $offenders = [];
+        foreach (self::docs() as $file) {
+            foreach (self::fences($file, ['', 'dtmpl'], includeSkipped: true) as [$line, $code]) {
+                foreach (array_keys(KeywordRegistry::REMOVED) as $removed) {
+                    if (!str_contains($code, '{' . $removed . '}')) {
+                        continue;
+                    }
+                    // Naming it inside prose about the rename is the point;
+                    // presenting it as a template is not.
+                    if (str_contains($code, 'was renamed to')) {
+                        continue;
+                    }
+                    $offenders[] = sprintf('%s line %d teaches `{%s}`', $file, $line, $removed);
+                }
+            }
+        }
+
+        self::assertSame([], $offenders);
+    }
+
+    #[Test]
     public function theDocsAreActuallyBeingRead(): void
     {
         // A provider that silently yields nothing turns this whole file
@@ -143,7 +174,7 @@ final class DocumentationExamplesTest extends TestCase
      *
      * @return list<array{int, string}> [1-indexed line of the opening fence, block body]
      */
-    private static function fences(string $file, array $languages): array
+    private static function fences(string $file, array $languages, bool $includeSkipped = false): array
     {
         $lines = explode("\n", (string) file_get_contents($file));
         $blocks = [];
@@ -162,7 +193,7 @@ final class DocumentationExamplesTest extends TestCase
             if (!in_array($language, $languages, true)) {
                 continue;
             }
-            if (self::SKIP_MARKER === trim($lines[$openedAt - 1] ?? '')) {
+            if (!$includeSkipped && self::SKIP_MARKER === trim($lines[$openedAt - 1] ?? '')) {
                 continue;
             }
             $blocks[] = [$openedAt + 1, implode("\n", $body)];

@@ -54,9 +54,54 @@ final class KeywordRegistry
         'widget',
     ];
 
+    /**
+     * Keywords that no longer exist, mapped to what replaced them.
+     *
+     * A removed keyword is never reclaimed as literal text. Dropping one
+     * from {@see KEYWORDS} alone makes `{oldname}` render as the four
+     * characters `{old` followed by `name}`, which is silent and gives
+     * the author nothing to search for. An entry here keeps the lexer
+     * recognising the spelling for exactly one purpose: to refuse it and
+     * name the replacement.
+     *
+     * `replacement` is the one-for-one substitute for this spelling.
+     * `hint` is appended to the message verbatim, and carries whatever
+     * the substitution alone does not say -- the shape of the surrounding
+     * pair, and any other meaning the old name still has in the language.
+     *
+     * @var array<string, array{replacement: string, since: string, hint: string}>
+     */
+    public const array REMOVED = [
+        'raw' => [
+            'replacement' => 'verbatim',
+            'since' => '2.0',
+            'hint' => 'Use `{verbatim}` ... `{endverbatim}`. The `raw` *filter* is unrelated and unchanged.',
+        ],
+        'endraw' => [
+            'replacement' => 'endverbatim',
+            'since' => '2.0',
+            'hint' => 'Use `{verbatim}` ... `{endverbatim}`. The `raw` *filter* is unrelated and unchanged.',
+        ],
+    ];
+
     public static function isKeyword(string $candidate): bool
     {
         return in_array($candidate, self::KEYWORDS, true);
+    }
+
+    /**
+     * The {@see REMOVED} entry for `$candidate`, or null.
+     *
+     * Exact match, not {@see closest()}: a rename is not a misspelling.
+     * `raw` and `verbatim` share no similarity tier -- they differ by
+     * five characters -- so a resemblance check answers "no" to the one
+     * question this needs to answer "yes" to.
+     *
+     * @return array{replacement: string, since: string, hint: string}|null
+     */
+    public static function findRemoved(string $candidate): ?array
+    {
+        return self::REMOVED[$candidate] ?? null;
     }
 
     /**
