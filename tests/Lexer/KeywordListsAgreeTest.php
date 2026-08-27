@@ -38,7 +38,7 @@ final class KeywordListsAgreeTest extends TestCase
     public function theRegistryAndTheLexerListExactlyTheSameKeywords(): void
     {
         /** @var array<string, mixed>|null $map */
-        $map = (new ReflectionClass(Lexer::class))->getConstant('KEYWORDS') ?: null;
+        $map = new ReflectionClass(Lexer::class)->getConstant('KEYWORDS') ?: null;
 
         // Reading a private constant by reflection is the point -- the Lexer
         // keeps it private on purpose -- but a rename would make getConstant()
