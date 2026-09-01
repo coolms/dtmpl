@@ -12,13 +12,29 @@ same commit as the change it describes.
 
 ## Unreleased
 
-Contributor documentation only: `CONTRIBUTING.md`, describing the Tuesday
+### Added: `{comment}` ... `{endcomment}` and `{comment:...}`
+
+A template had no comment syntax. `<!-- ... -->` is ordinary text to this
+engine and is emitted like any other text, so there was nowhere to leave a note
+the visitor does not read -- and a comment is usually exactly where an author
+writes down what they did not want visible.
+
+Removed by the lexer, so the contents reach neither `OutputMode::Html` nor
+`OutputMode::Text`. `OutputMode::Text` turns *encoding* off, not the lexer.
+
+The block form does not parse its body, which is what makes it usable for
+commenting out a chunk of template while debugging. Comments do not nest --
+the first `{endcomment}` terminates -- and an inline comment cannot contain
+`}`, both for the same reason: the body is never read, so there is nothing
+tracking braces. Only the exact forms open one, so `{commentary}`,
+`{comment foo}` and `{comments}` remain ordinary text.
+
+Additive: no existing template changes meaning unless it contained the literal
+text `{comment}` or `{comment:`, which previously rendered as itself.
+
+Also: contributor documentation (`CONTRIBUTING.md`), describing the Tuesday
 release train, the deprecation window, and how this package's version number
 relates to the CoolMS platform packages.
-
-No code changed, so **this will not be released on its own.** It rides out with
-the next change that is worth a version number -- publishing an empty patch to
-ship a documentation file would contradict the policy the file describes.
 
 ## 2.0.0 - 2026-08-26
 

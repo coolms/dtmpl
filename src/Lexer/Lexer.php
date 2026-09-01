@@ -48,6 +48,24 @@ final class Lexer
 
     private const string VERBATIM_CLOSE = 'endverbatim';
 
+    /**
+     * Delimiters of the comment block, and the inline form's keyword.
+     *
+     * A comment is the verbatim scan with the emit removed: same shape, same
+     * first-close-wins rule, same hard error when unterminated -- it just
+     * produces no token. Deliberately spelled as a keyword pair rather than as
+     * `{# ... #}`, because the language's one distinguishing promise is that
+     * every tag is `{keyword:argument}` and blocks close with `{endkeyword}`.
+     * A second delimiter shape would buy three saved characters and cost that.
+     *
+     * ⚠️ `comment` is NOT in {@see KeywordRegistry::KEYWORDS} and must not be.
+     * Keywords there become tokens the parser expects to handle; a comment is
+     * consumed here and never reaches the parser at all.
+     */
+    private const string COMMENT_OPEN = 'comment';
+
+    private const string COMMENT_CLOSE = 'endcomment';
+
     private const array BOOLEAN_LITERALS = [
         'true' => true,
         'false' => false,
@@ -87,6 +105,11 @@ final class Lexer
             // blocks, JSON, and DTMPL code samples survive intact. Checked
             // first so the marker never reaches the tag scanner.
             //
+            // `{comment}...{endcomment}` and `{comment:...}` are removed
+            // outright: nothing is emitted, so the contents cannot reach any
+            // output mode. Checked after verbatim so a comment marker shown
+            // inside a verbatim block survives as the sample text it is.
+            //
             // Otherwise `{` enters tag mode only when followed by a
             // registered keyword -- every other `{...` (whitespace, digits,
             // symbols, unrelated words) stays literal so code samples / JSON
@@ -94,6 +117,10 @@ final class Lexer
             // `{{` is the escape sequence and is handled by scanText.
             if ($this->isVerbatimBlockStart()) {
                 $this->scanVerbatimBlock();
+            } elseif ($this->isCommentBlockStart()) {
+                $this->scanCommentBlock();
+            } elseif ($this->isInlineCommentStart()) {
+                $this->scanInlineComment();
             } elseif ($this->isTagStart()) {
                 $this->scanTag();
             } else {
@@ -200,6 +227,94 @@ final class Lexer
     }
 
     /**
+     * True iff the cursor sits on a literal `{comment}` (the exact form).
+     *
+     * Same exact-form rule as verbatim: `{commentary}` or `{comment foo}` are
+     * not comment markers and fall through to ordinary text.
+     */
+    private function isCommentBlockStart(): bool
+    {
+        if ('{' !== $this->peek() || '{' === $this->peek(1)) {
+            return false;
+        }
+
+        return self::COMMENT_OPEN === $this->peekKeywordCandidate()
+            && '}' === $this->peek(self::closingBraceOffset(self::COMMENT_OPEN));
+    }
+
+    /**
+     * True iff the cursor sits on `{comment:` -- the inline form.
+     */
+    private function isInlineCommentStart(): bool
+    {
+        if ('{' !== $this->peek() || '{' === $this->peek(1)) {
+            return false;
+        }
+
+        return self::COMMENT_OPEN === $this->peekKeywordCandidate()
+            && ':' === $this->peek(self::closingBraceOffset(self::COMMENT_OPEN));
+    }
+
+    /**
+     * Scan `{comment}...{endcomment}` and emit nothing.
+     *
+     * The interior is never tokenized, so a commented-out region may contain
+     * anything at all -- unbalanced braces, half-written tags, another
+     * `{verbatim}` -- which is the point: the common use is commenting out a
+     * chunk of template while debugging, and that chunk is usually broken.
+     *
+     * The FIRST `{endcomment}` terminates. Comments do not nest, for the same
+     * reason verbatim blocks do not: the scanner would have to parse the body
+     * it is deliberately not parsing.
+     */
+    private function scanCommentBlock(): void
+    {
+        $startLine = $this->line;
+        $startColumn = $this->column;
+
+        $this->skip(self::markerLength(self::COMMENT_OPEN));
+
+        while (!$this->isEof()) {
+            if ('{' === $this->peek()
+                && self::COMMENT_CLOSE === $this->peekKeywordCandidate()
+                && '}' === $this->peek(self::closingBraceOffset(self::COMMENT_CLOSE))
+            ) {
+                $this->skip(self::markerLength(self::COMMENT_CLOSE));
+
+                return;
+            }
+
+            $this->advance();
+        }
+
+        throw new SyntaxException(sprintf('Unclosed `{%s}` block -- expected a matching `{%s}`.', self::COMMENT_OPEN, self::COMMENT_CLOSE), $startLine, $startColumn);
+    }
+
+    /**
+     * Scan `{comment:...}` and emit nothing.
+     *
+     * ⚠️ Terminates at the FIRST `}`, because the body is deliberately never
+     * parsed -- there is no string or brace tracking to tell an inner `}` from
+     * the terminator. An inline comment therefore cannot contain `}`; the block
+     * form has no such limit and is the answer when the note needs one.
+     */
+    private function scanInlineComment(): void
+    {
+        $startLine = $this->line;
+        $startColumn = $this->column;
+
+        $this->skip(self::markerLength(self::COMMENT_OPEN));
+
+        while (!$this->isEof()) {
+            if ('}' === $this->advance()) {
+                return;
+            }
+        }
+
+        throw new SyntaxException(sprintf('Unclosed `{%s:` -- expected a closing `}`.', self::COMMENT_OPEN), $startLine, $startColumn);
+    }
+
+    /**
      * Advance the cursor by `$count` characters.
      */
     private function skip(int $count): void
@@ -281,6 +396,15 @@ final class Lexer
                 // (Checked here too, not just in tokenize(), because a
                 // text run can swallow right up to a marker mid-stream.)
                 if ($this->isVerbatimBlockStart()) {
+                    break;
+                }
+                // A comment ends the text run for the same reason, and it has
+                // to be checked HERE as well as in tokenize(): a text run
+                // swallows characters until something breaks it, so a marker
+                // that is not at the start of the run is only ever seen from
+                // inside this loop. Without this the feature works at position
+                // 0 and nowhere else -- which is exactly how it first shipped.
+                if ($this->isCommentBlockStart() || $this->isInlineCommentStart()) {
                     break;
                 }
                 $candidate = $this->peekKeywordCandidate();

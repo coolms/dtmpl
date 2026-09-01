@@ -303,6 +303,48 @@ confuse.
 
 ---
 
+## Comments
+
+```
+{comment}
+    Anything at all, including half-written tags and unbalanced braces.
+{endcomment}
+
+{comment:a short note}
+```
+
+A comment is removed by the lexer. Nothing is emitted, so the contents cannot
+reach the output in either mode -- `OutputMode::Text` turns *encoding* off, not
+the lexer, and a comment never becomes a value for an encoder to see.
+
+This is the only way to leave a note in a template that a visitor cannot read.
+An HTML comment is not one: `<!-- ... -->` is ordinary text to DTMPL and is
+emitted like any other text, which leaks in exactly the wrong direction, because
+a comment is usually where an author writes down what they did not want visible.
+
+The block form does not parse its body, which is what makes it useful for
+commenting out a chunk of template while debugging -- and that chunk is usually
+broken. Nothing inside needs to be valid.
+
+Two limits, both deliberate:
+
+- **Comments do not nest**, and the FIRST `{endcomment}` terminates. Nesting
+  would require the scanner to parse the body it is deliberately not parsing --
+  the same reason `{verbatim}` does not nest.
+- **An inline comment cannot contain `}`.** It ends at the first one, because
+  there is no brace tracking in a body that is never read. Use the block form
+  when the note needs a brace.
+
+Only the exact forms open a comment: `{comment}` and `{comment:`. `{commentary}`,
+`{comment foo}` and `{comments}` are ordinary text, so prose and code containing
+the word are unaffected -- and a comment marker shown *inside* a `{verbatim}`
+block stays visible, which is how this section documents itself.
+
+An unterminated comment is a hard error naming the missing terminator, not a
+silently swallowed rest-of-file.
+
+---
+
 ## Whitespace
 
 A tag that sits alone on a line and renders nothing takes that line with it,
