@@ -225,6 +225,48 @@ also take an inline default, and needs no `{endslot}`:
 Fill bodies are rendered in the **caller's** context, so they can reach the
 page's own variables rather than the layout's.
 
+### ⚠️ A fill with no matching slot EVAPORATES
+
+There is no error, no warning and no log line. `{include:}` renders every fill
+body and passes them to the partial as a map; `{slot:}` looks its own name up in
+that map. **A name nothing looks up is simply never read.**
+
+The failure is worse than it sounds, because a layout chain hides it. A slot
+only reaches the layout that DECLARES it:
+
+<!-- doctest:skip -->
+```
+page ──{fill:styles}──▶ site.html.dtmpl ──{include:}──▶ base.html.dtmpl
+                        (declares no                    ({slot:styles})
+                         `styles` slot)
+```
+
+The page's fill is handed to `site`, which never asks for `styles`, so it is
+dropped — and `base`'s slot falls back to its own default. The page renders,
+looks plausible, and is styled by something the author did not choose.
+
+**Measured, not hypothetical.** This cost a full debugging session on a real
+site: a landing page filled `styles` with its own stylesheet, the intermediate
+layout did not forward the slot, and the page came back in the wrong palette
+with nothing anywhere reporting a problem.
+
+**Forwarding a slot means declaring it, WITH its default:**
+
+```
+{include:`base.html.dtmpl`}
+  {fill:styles}{slot:styles}{include:`partials/styles.html.dtmpl`}{endslot}{endfill}
+{endinclude}
+```
+
+⚠️ The restated default is not optional. `{fill:styles}{slot:styles}{endfill}`
+alone forwards the **empty string** when the caller filled nothing, which
+overrides the base layout's own default and takes the stylesheet away from every
+page that did not ask for one.
+
+**How to spot it today:** if a fill seems to do nothing, check every layout
+between the page and the one that declares the slot. There is currently no
+diagnostic — see the open question in `CHANGELOG.md`.
+
 ---
 
 ## Constants
