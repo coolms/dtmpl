@@ -10,6 +10,8 @@ use CoolMS\Dtmpl\Exception\TemplateNotFoundException;
 use CoolMS\Dtmpl\Lexer\Lexer;
 use CoolMS\Dtmpl\Optimizer\WhitespaceTrimmer;
 use CoolMS\Dtmpl\Parser\Parser;
+use CoolMS\Dtmpl\Runtime\AssetGatherer;
+use CoolMS\Dtmpl\Runtime\CollectedAssets;
 use CoolMS\Dtmpl\Runtime\ConstantProviderInterface;
 use CoolMS\Dtmpl\Runtime\Executor;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
@@ -44,7 +46,7 @@ final class DtmplEngine implements TemplateCompilerInterface
      * constructor property, a removed one, a changed type). Old entries
      * then age out under their own keys instead of being read back.
      */
-    private const string AST_VERSION = '2';
+    private const string AST_VERSION = '3';
 
     private readonly Lexer $lexer;
     private readonly Parser $parser;
@@ -53,6 +55,9 @@ final class DtmplEngine implements TemplateCompilerInterface
 
     /** @var array<string, TemplateNode> */
     private array $compiledCache = [];
+
+    /** @var array<string, CollectedAssets> */
+    private array $gatheredAssets = [];
 
     /** @var ConstantProviderInterface[] */
     private array $constantProviders = [];
@@ -142,6 +147,33 @@ final class DtmplEngine implements TemplateCompilerInterface
         $template = (string) file_get_contents($path);
 
         return $this->render($template, $data, $path);
+    }
+
+    /**
+     * The `{css}` / `{js}` declared by `$source` and everything it includes.
+     *
+     * The host calls this BEFORE rendering and puts the result where the
+     * document head can reach it -- which is the whole reason the gather is a
+     * separate pass rather than something the Executor accumulates as it goes.
+     * By the time a block partial renders, the `<head>` is already bytes on
+     * the wire; anything collected during the render can only be written after
+     * the markup that needed it.
+     *
+     * Requires a loader (bound via {@see withLoader()}) to follow includes;
+     * without one it returns only what the root template itself declares.
+     *
+     * @param string $templatePath VFS path of `$source`, for relative include resolution
+     *
+     * @throws InvalidArgumentException
+     */
+    public function gatherAssets(string $source, string $templatePath = ''): CollectedAssets
+    {
+        // Per-instance memo only. `withLoader()` clones the engine for each
+        // render, so this lives exactly as long as the loader chain whose
+        // answers it caches -- a memo keyed on source alone, on the shared
+        // engine, would hand one theme's block styles to the next theme's page.
+        return $this->gatheredAssets[md5($templatePath . "\0" . $source)] ??=
+            new AssetGatherer($this->loader, $this)->gather($this->compile($source), $templatePath);
     }
 
     /**

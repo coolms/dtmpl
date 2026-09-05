@@ -12,6 +12,30 @@ same commit as the change it describes.
 
 ## Unreleased
 
+### Added: `{css}` ... `{endcss}` and `{js}` ... `{endjs}`
+
+A partial can now declare the stylesheet and script it needs in the same file
+as the markup that needs them. The interior is scanned like `{verbatim}` --
+never tokenized, because CSS is made of braces -- but it renders nothing where
+it is written. The declarations are lifted into the compiled AST as metadata;
+`DtmplEngine::gatherAssets()` walks a template and everything it includes,
+deduplicates, and hands the host one `<style>` and one `<script>` to put in the
+document head before the render starts.
+
+The alternative it replaces was a choice between two defects: a `<style>` in
+the partial ships one copy per instance, in the body, in an order nobody chose;
+a separate stylesheet fixes that and breaks the pairing, so the rules and the
+markup are then edited apart and drift.
+
+Rules, all enforced at compile time: top level only (a conditional asset block
+would ship regardless of its branch, so it is refused rather than quietly
+meaning something else); the body cannot contain its own closing tag; empty
+blocks contribute nothing. The gather is deliberately STATIC -- every
+`{include:}` is followed, including ones a given render will not reach -- because
+the head is written before any branch is taken.
+
+⚠️ `AST_VERSION` is bumped to `3`: `TemplateNode` gained a property.
+
 ### Added: `{comment}` ... `{endcomment}` and `{comment:...}`
 
 A template had no comment syntax. `<!-- ... -->` is ordinary text to this

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace CoolMS\Dtmpl\Parser;
 
+use CoolMS\Dtmpl\AST\AssetKind;
+use CoolMS\Dtmpl\AST\AssetNode;
 use CoolMS\Dtmpl\AST\ComparisonNode;
 use CoolMS\Dtmpl\AST\ConditionalNode;
 use CoolMS\Dtmpl\AST\ConstNode;
@@ -59,11 +61,68 @@ final class Parser
         $this->tokens = $tokens;
         $this->position = 0;
         $children = [];
+        $assets = [];
         while (!$this->isEof()) {
+            // ⚠️ The dispatch is on the TOKEN, not on parseAsset()'s return.
+            // An empty `{css}{endcss}` yields no node and still consumed its
+            // token, so treating "no node" as "not an asset block" walks into
+            // parseNode() at EOF and reports `Unexpected token: EOF` -- which
+            // is what the first version did.
+            if ($this->current()->isAny(TokenType::AssetCss, TokenType::AssetJs)) {
+                $asset = $this->parseAsset();
+                if (null !== $asset) {
+                    $assets[] = $asset;
+                }
+                continue;
+            }
             $children[] = $this->parseNode();
         }
 
-        return new TemplateNode($children);
+        return new TemplateNode($children, 0, 0, $assets);
+    }
+
+    /**
+     * Consume the `{css}` / `{js}` block the cursor is on, returning null when
+     * its body is empty.
+     *
+     * ⚠️ Only called from {@see parse()}, so an asset block is legal at the TOP
+     * LEVEL of a template and nowhere else -- inside a loop or a conditional
+     * it reaches {@see parseNode()} and is refused by name. The restriction is
+     * the construct's meaning, not an implementation limit: these declarations
+     * are gathered before rendering starts, so a `{css}` inside `{if:}` would
+     * ship whether or not the branch ran, and an author who wrote it there
+     * would reasonably read it as conditional. Refusing is the only answer
+     * that does not quietly mean something else.
+     *
+     * An EMPTY block yields nothing rather than an empty fragment -- a
+     * placeholder someone left behind should not put a blank line in the head.
+     */
+    private function parseAsset(): ?AssetNode
+    {
+        $token = $this->current();
+        $kind = match ($token->type) {
+            TokenType::AssetCss => AssetKind::Css,
+            TokenType::AssetJs => AssetKind::Js,
+            default => null,
+        };
+        if (null === $kind) {
+            return null;
+        }
+
+        $this->advance();
+
+        // ⚠️ Refused at COMPILE time, where the author is looking at the file,
+        // rather than escaped at render time. The body is written into its
+        // element verbatim -- there is no encoding that is correct inside both
+        // `<style>` and `<script>` -- so its own closing tag would end the
+        // element early and spill the rest into the document as text.
+        if (false !== stripos($token->value, $kind->terminator())) {
+            throw new SyntaxException(sprintf('A `{%s}` block cannot contain `%s>` -- it would close the `<%s>` element early. Move this to a real asset file.', $kind->value, $kind->terminator(), $kind->element()), $token->line, $token->column);
+        }
+
+        $source = trim($token->value);
+
+        return '' === $source ? null : new AssetNode($kind, $source, $token->line, $token->column);
     }
 
     /**
@@ -79,6 +138,15 @@ final class Parser
         // Tag
         if ($token->is(TokenType::OpenBrace)) {
             return $this->parseTag();
+        }
+        // An asset block that did not come from parse()'s top-level loop is
+        // nested inside a block tag. Named rather than reported as an
+        // "unexpected ASSET_CSS token", which tells the author nothing about
+        // what to do -- see parseAsset() for why the rule exists.
+        if ($token->isAny(TokenType::AssetCss, TokenType::AssetJs)) {
+            $keyword = TokenType::AssetCss === $token->type ? 'css' : 'js';
+
+            throw new SyntaxException(sprintf('`{%s}` must be at the top level of a template -- it is gathered before rendering, so it cannot sit inside a loop or a conditional.', $keyword), $token->line, $token->column);
         }
 
         throw new SyntaxException("Unexpected token: {$token->type->value}", $token->line, $token->column);

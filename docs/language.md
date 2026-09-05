@@ -301,6 +301,119 @@ there is nothing there to encode -- see [Escaping](#escaping) for that, and
 [the two of them together](#verbatim-is-not-raw) for why they are easy to
 confuse.
 
+### ⚠️ A directive written inside verbatim is PRINTED, not run
+
+This is correct behaviour — "nothing inside is tokenized" means exactly this —
+and it is the trap people actually fall into, because there is **no error**. The
+directive does not fail, does not warn and does not render as nothing: it
+appears on the page as literal text, in front of whoever is reading it.
+
+```
+{verbatim}
+  <style>.a{color:red}</style>
+  {if:site.features.chat}<div class="chat"></div>{endif}
+{endverbatim}
+```
+
+A visitor sees `{if:site.features.chat}` and `{endif}` as words.
+
+**Measured, not hypothetical.** A theme partial in this repository wraps its
+whole file in `{verbatim}` because its CSS and JS are full of braces. A guard
+added inside that block shipped `{comment}`, `{if:}`, `{else}` and `{endif}`
+onto a live page as visible text, and nothing anywhere reported it — it was
+caught by a probe that read the rendered HTML.
+
+**Closing and reopening the block does not rescue it either.** Writing
+`{endverbatim}` before the directive and `{verbatim}` after looks like it should
+work and does not; the surrounding markup is one span and the directive stays
+inert.
+
+**What to do instead.** Put the directive at the **include site** — the template
+that pulls the partial in — which is ordinary template code:
+
+```
+{if:site.features.chat}
+  {include:`partials/chat.html.dtmpl`}
+{endif}
+```
+
+Or restructure the partial so `{verbatim}` wraps only the `<style>` and
+`<script>` it was needed for, leaving the markup outside it. The second is the
+better fix and the more invasive one; the first works today.
+
+⚠️ **Better still, do not use `{verbatim}` for stylesheets and scripts at all.**
+`{css}` and `{js}` exist for exactly that content and hoist it out of the body
+— see [Asset blocks](#asset-blocks).
+
+---
+
+## Asset blocks
+
+```
+{css}
+.card{border:1px solid #ddd}
+@media (min-width:768px){ .card{padding:24px} }
+{endcss}
+
+{js}
+document.querySelectorAll('.card').forEach(function (n) { n.hidden = false });
+{endjs}
+```
+
+A partial declares the CSS and JS it needs **in the same file as the markup that
+needs them**. The interior is scanned like `{verbatim}` — never tokenized, so
+braces, media queries and DTMPL lookalikes all survive — but unlike verbatim it
+renders **nothing where it is written**.
+
+The declarations are lifted out of the flow at parse time. Before a render
+starts, the host walks the root template and everything it includes, collects
+every block once, and puts the result where the layout can write it into the
+document head:
+
+```
+{var:_assets.css}    <!-- in <head>, after the theme's stylesheets -->
+{var:_assets.js}     <!-- before </body> -->
+```
+
+### Why not just write `<style>` in the partial
+
+Because a partial rendered eight times ships eight copies of its rules, in the
+middle of the body, in an order nobody chose. Moving the CSS to a separate file
+fixes the duplication and breaks the pairing — the file and the markup are then
+edited apart, published apart, and drift. An asset block keeps them in one file
+and still emits them once.
+
+### The rules
+
+- **Top level only.** A `{css}` inside `{if:}` or `{loop:}` is refused at compile
+  time. The gather happens before any branch is taken, so a conditional asset
+  block would ship whether or not its branch ran — and an author who wrote it
+  there would reasonably read it as conditional.
+- **The gather is static.** Every `{include:}` is followed, including ones this
+  render will not reach. A page whose block dispatch names fourteen partials
+  carries the styles of all fourteen, once each. That is the cost of the
+  declaration living beside the markup; it is bounded by the template set, not
+  by the data.
+- **The body cannot contain its own closing tag.** `</script>` inside a `{js}`
+  block is a compile error, not an escaped string: it would end the element
+  early, and there is no encoding that is correct inside both `<style>` and
+  `<script>`. Content that needs those characters wants a real asset file.
+- **Empty blocks contribute nothing** — no blank line, no empty element.
+- Identical bodies are **deduplicated**, whether they come from one partial
+  included many times or from two partials shipping the same rules.
+
+### What the host must do
+
+Assets only reach the page if the layout emits them. A theme's base layout
+writes `{var:_assets.css}` last in `<head>` — so a partial's own rules outrank
+the theme's general ones on a tie — and `{var:_assets.js}` before `</body>`.
+A layout that does not emit them makes every `{css}` in that theme silently
+inert.
+
+⚠️ **Related:** the same silence applies to a comment written in another
+language's syntax. `{# … #}` is Twig, not DTMPL, and prints as text for the same
+reason a keyword lookalike does — see [Comments](#comments) for the real one.
+
 ---
 
 ## Comments

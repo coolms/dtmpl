@@ -33,9 +33,13 @@ final class WhitespaceTrimmer
     {
         $trimmed = $this->trimChildren($root->children);
 
+        // ⚠️ `$root->assets` is carried, not recomputed. It is metadata rather
+        // than output, so nothing here can change it -- but a rebuild that
+        // forgot it would drop every declared style on any template this pass
+        // happens to touch, which is a silent, data-dependent loss.
         return $trimmed === $root->children
             ? $root
-            : new TemplateNode($trimmed, $root->line, $root->column);
+            : new TemplateNode($trimmed, $root->line, $root->column, $root->assets);
     }
 
     /**
