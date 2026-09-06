@@ -330,19 +330,19 @@ final class DtmplEngine implements TemplateCompilerInterface
      * ⚠️ **The failure this exists for is silence, not breakage.** The gather
      * is a static walk of `{include:}` from the page root. A template reached
      * any other way is invisible to it -- a widget names its partial at render
-     * time (ADR-135), so `{widget:nav:menu}`'s `{css}` was never gathered and
+     * time, so `{widget:nav:menu}`'s `{css}` was never gathered and
      * the menu simply rendered unstyled. Nothing logged, nothing 500'd, and
      * the person who eventually notices is looking at an unstyled block with
      * no reason for it anywhere. The rule "a block owns its assets" was true
      * everywhere except where it quietly was not.
      *
      * ⚠️ **A notice and not an exception, deliberately.** Throwing here would
-     * be worse than the silence it replaces: {@see \App\Navi\Infrastructure\Widget\NaviMenuWidgetRenderer}
-     * catches `Throwable` and degrades to an empty menu -- because it renders
-     * on every public page -- so a throw would turn an unstyled menu into a
-     * Missing one, still silently. Every widget with that guard behaves the
-     * same way. The loss has to be reported through a channel the guard does
-     * not swallow, and the rendered document is that channel.
+     * be worse than the silence it replaces: a widget renderer that runs on
+     * every public page catches `Throwable` and degrades to an empty result,
+     * so a throw would turn an unstyled block into a missing one, still
+     * silently. Every widget with that guard behaves the same way. The loss
+     * has to be reported through a channel the guard does not swallow, and
+     * the rendered document is that channel.
      *
      * ⚠️ **It checks the condition, not the cause.** It asks whether these
      * declarations reached the head, so it catches every route around the walk

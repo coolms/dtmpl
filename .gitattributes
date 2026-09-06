@@ -1,7 +1,7 @@
 # Packagist serves a git archive, so anything not export-ignored here is
 # downloaded by every consumer of this package.
 #
-# tests/ is deliberately KEPT. Symfony, Doctrine and most of the PHP ecosystem
+# tests/ is deliberately KEPT. Symfony and most of the PHP ecosystem
 # ship theirs, and they earn the space: someone debugging an integration reads
 # them, and they document usage better than most READMEs.
 #
