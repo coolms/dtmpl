@@ -64,7 +64,7 @@ final class AssetBlockTest extends TestCase
     }
 
     /**
-     * ⚠️ The block dispatch this exists for is a chain of `{if:}`s naming
+     * !! The block dispatch this exists for is a chain of `{if:}`s naming
      * fourteen partials, and the head is written before any of them is
      * evaluated. A gather that followed only the taken branch would ship a
      * page whose styles depend on its data -- correct on the page it was
@@ -165,7 +165,7 @@ final class AssetBlockTest extends TestCase
     }
 
     /**
-     * ⚠️ The gap this closes is silence. The gather is a static walk of
+     * !! The gap this closes is silence. The gather is a static walk of
      * `{include:}` from the page root, so a template reached any other way is
      * invisible to it -- a widget names its partial at render time, and the
      * site menu's `{css}` was therefore never gathered and the menu rendered
@@ -228,6 +228,69 @@ final class AssetBlockTest extends TestCase
         );
 
         self::assertSame('<nav></nav>', $out);
+    }
+
+    /**
+     * Filling a slot the partial does not declare is almost always a typo, and
+     * it used to cost nothing and say nothing: the body renders, lands in the
+     * `__slots` map, and is never read. The page comes back missing whatever
+     * the fill was for.
+     *
+     * It cost a session on this site -- a page filled `head`, the layout
+     * declared `styles`, and a stylesheet evaporated three layers from the typo.
+     */
+    #[Test]
+    public function aFillWithNoMatchingSlotIsReportedInDebug(): void
+    {
+        file_put_contents($this->dir . '/layout_styles.dtmpl', '<main>{slot:styles}</main>');
+
+        $out = $this->debugEngine()->render(
+            '{include:`layout_styles.dtmpl`}{fill:head}x{endfill}{endinclude}',
+            [],
+            $this->dir . '/page.dtmpl',
+        );
+
+        self::assertStringContainsString('does not declare as a {slot}', $out);
+        self::assertStringContainsString('`head`', $out);
+        self::assertStringContainsString('styles', $out, 'it names what IS declared');
+        self::assertStringContainsString('<main></main>', $out, 'the page still renders');
+    }
+
+    /** The control: a fill that matches must produce no notice at all. */
+    #[Test]
+    public function aFillThatMatchesItsSlotIsSilent(): void
+    {
+        file_put_contents($this->dir . '/layout_ok.dtmpl', '<main>{slot:body}</main>');
+
+        $out = $this->debugEngine()->render(
+            '{include:`layout_ok.dtmpl`}{fill:body}hello{endfill}{endinclude}',
+            [],
+            $this->dir . '/page.dtmpl',
+        );
+
+        self::assertSame('<main>hello</main>', $out);
+    }
+
+    /**
+     * A slot inside a branch this render does not take is still DECLARED.
+     * Reporting it as missing would make the notice worse than silence, because
+     * the reader would go looking for a typo that is not there.
+     */
+    #[Test]
+    public function aSlotNestedInsideAConditionalCountsAsDeclared(): void
+    {
+        file_put_contents(
+            $this->dir . '/layout_nested.dtmpl',
+            '{if:never}<main>{slot:body}</main>{endif}',
+        );
+
+        $out = $this->debugEngine()->render(
+            '{include:`layout_nested.dtmpl`}{fill:body}hi{endfill}{endinclude}',
+            [],
+            $this->dir . '/page.dtmpl',
+        );
+
+        self::assertStringNotContainsString('does not declare', $out);
     }
 
     protected function setUp(): void
