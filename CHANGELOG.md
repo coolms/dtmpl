@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning is described in `CONTRIBUTING.md` -- read it before assuming what a
 major number means here.
 
-⚠️ Entries dated before 2026-09-01 were **reconstructed** from tags and commit
+!! Entries dated before 2026-09-01 were **reconstructed** from tags and commit
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
@@ -14,7 +14,7 @@ same commit as the change it describes.
 
 ### Open question: should a fill with no matching slot be an error in debug?
 
-Not a change — a decision to take. Recorded here because it was found the
+Not a change -- a decision to take. Recorded here because it was found the
 expensive way and will be found that way again otherwise.
 
 `{include:}` renders every fill body into a map and passes it to the partial;
@@ -28,18 +28,18 @@ chain rather than an intention. Nobody writes a fill they mean to be discarded.
 
 **Both detection points are feasible, and they catch different things.**
 
-*At render time* — `executeInclude` already builds the fill map, and
+*At render time* -- `executeInclude` already builds the fill map, and
 `executeSlot` is the only thing that reads it. Marking a name as consumed and
 reporting the leftovers when the partial finishes is a handful of lines, has
 **no false positives at all**, and fires exactly when the author loads the page
 they broke. It only sees paths that actually render.
 
-*Statically* — slot names are literals in the AST, so "which names does this
+*Statically* -- slot names are literals in the AST, so "which names does this
 partial accept?" is answerable by walking it and following its includes, which
 is the walk `AssetGatherer` already performs. It covers branches a given render
 does not take. The subtlety is that a forwarded slot (`{fill:x}{slot:x}{endfill}`)
 means the accepted set includes names appearing inside fill bodies, not only
-top-level slots — miss that and the check reports a false positive on the
+top-level slots -- miss that and the check reports a false positive on the
 correct idiom.
 
 **Recommendation: render time, debug only, as a thrown exception rather than a
@@ -47,7 +47,7 @@ log line.** A silent failure is not fixed by a diagnostic nobody reads, and a
 template that fills nothing is not a template anybody wanted to ship. The
 static version is the better long-term answer and the riskier first move.
 
-⚠️ Deliberately NOT implemented here. This package is published, so a new
+!! Deliberately NOT implemented here. This package is published, so a new
 failure mode is a release decision rather than a drive-by.
 
 ### Added: `{css}` ... `{endcss}` and `{js}` ... `{endjs}`
@@ -72,7 +72,7 @@ blocks contribute nothing. The gather is deliberately STATIC -- every
 `{include:}` is followed, including ones a given render will not reach -- because
 the head is written before any branch is taken.
 
-⚠️ `AST_VERSION` is bumped to `3`: `TemplateNode` gained a property.
+!! `AST_VERSION` is bumped to `3`: `TemplateNode` gained a property.
 
 ### Added: `{comment}` ... `{endcomment}` and `{comment:...}`
 
