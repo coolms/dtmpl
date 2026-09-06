@@ -19,10 +19,26 @@ final readonly class CollectedAssets
     /**
      * @param list<string> $css
      * @param list<string> $js
+     * @param list<string> $keys
      */
     private function __construct(
         public array $css = [],
         public array $js = [],
+        /**
+         * The {@see \CoolMS\Dtmpl\AST\AssetNode::key()} of every declaration
+         * that made it into this set.
+         *
+         * ⚠️ Kept because the interesting question is about what is ABSENT.
+         * The two source lists answer "what goes in the head"; only the keys
+         * answer "was this particular declaration reached", which is what lets
+         * a render notice that its own `{css}` is not in the document it is
+         * being rendered into. Without them the check would have to compare
+         * fragment text, and a partial declaring the same rule twice would
+         * read as gathered when it was not.
+         *
+         * @var list<string>
+         */
+        public array $keys = [],
     ) {
     }
 
@@ -45,7 +61,15 @@ final readonly class CollectedAssets
             };
         }
 
-        return new self($css, $js);
+        return new self($css, $js, array_keys($fragments));
+    }
+
+    /**
+     * Whether a declaration with this key was gathered into the document.
+     */
+    public function has(string $key): bool
+    {
+        return in_array($key, $this->keys, true);
     }
 
     public function isEmpty(): bool

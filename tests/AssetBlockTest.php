@@ -164,6 +164,72 @@ final class AssetBlockTest extends TestCase
         self::assertSame('{cssoverride} {css x}', $this->render('{cssoverride} {css x}'));
     }
 
+    /**
+     * ⚠️ THE GAP THIS CLOSES IS SILENCE. The gather is a static walk of
+     * `{include:}` from the page root, so a template reached any other way is
+     * invisible to it -- a widget names its partial at render time, and the
+     * site menu's `{css}` was therefore never gathered and the menu rendered
+     * unstyled with nothing anywhere saying why.
+     */
+    #[Test]
+    public function aDeclarationThatDidNotReachTheHeadIsReportedInDebug(): void
+    {
+        $source = "{css}\n.widget-only{color:red}\n{endcss}<nav></nav>";
+
+        $out = $this->debugEngine()->render(
+            $source,
+            ['_assets' => ['keys' => ['css:gathered-from-somewhere-else']]],
+            $this->dir . '/widget.dtmpl',
+        );
+
+        self::assertStringContainsString('did not reach the document head', $out);
+        self::assertStringContainsString('widget.dtmpl', $out);
+        self::assertStringContainsString('<nav></nav>', $out, 'The page still renders.');
+    }
+
+    /**
+     * The positive control, and the one that would catch a check that fires on
+     * everything -- which would be worse than the silence, because a warning
+     * nobody can act on is one everybody learns to ignore.
+     */
+    #[Test]
+    public function aDeclarationThatDidReachTheHeadIsSilent(): void
+    {
+        $source = "{css}\n.ordinary{color:red}\n{endcss}<p>x</p>";
+        $engine = $this->debugEngine();
+        $gathered = $engine->gatherAssets($source, $this->dir . '/page.dtmpl');
+
+        $out = $engine->render($source, ['_assets' => ['keys' => $gathered->keys]], $this->dir . '/page.dtmpl');
+
+        self::assertSame('<p>x</p>', $out);
+    }
+
+    /**
+     * No `_assets` at all means nobody gathered -- which shipped once, when
+     * one of two render paths was given the pass and the other was not, and
+     * every doc page came back with empty tokens.
+     */
+    #[Test]
+    public function aRenderThatGatheredNothingAtAllIsCalledOutAsSuch(): void
+    {
+        $out = $this->debugEngine()->render("{css}\n.x{color:red}\n{endcss}ok", [], $this->dir . '/page.dtmpl');
+
+        self::assertStringContainsString('nothing was gathered for this render at all', $out);
+    }
+
+    #[Test]
+    public function theNoticeIsDebugOnlyAndNeverReachesAVisitor(): void
+    {
+        // Same input as the reported case, on the ordinary engine.
+        $out = $this->engine->render(
+            "{css}\n.widget-only{color:red}\n{endcss}<nav></nav>",
+            ['_assets' => ['keys' => ['css:something-else']]],
+            $this->dir . '/widget.dtmpl',
+        );
+
+        self::assertSame('<nav></nav>', $out);
+    }
+
     protected function setUp(): void
     {
         $this->dir = sys_get_temp_dir() . '/dtmpl_assets_' . bin2hex(random_bytes(4));
@@ -186,6 +252,11 @@ final class AssetBlockTest extends TestCase
             unlink($file);
         }
         rmdir($this->dir);
+    }
+
+    private function debugEngine(): DtmplEngine
+    {
+        return new DtmplEngine(debug: true)->withLoader(new FilesystemTemplateLoader($this->dir));
     }
 
     private function render(string $template): string

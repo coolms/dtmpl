@@ -131,7 +131,8 @@ final class DtmplEngine implements TemplateCompilerInterface
     {
         $ast = $this->compile($template);
 
-        return $this->executor->execute($ast, $this->mergeConstants($data), $templatePath);
+        return $this->ungatheredAssetNotice($ast, $data, $templatePath)
+            . $this->executor->execute($ast, $this->mergeConstants($data), $templatePath);
     }
 
     /**
@@ -320,6 +321,70 @@ final class DtmplEngine implements TemplateCompilerInterface
             'in_memory_count' => count($this->compiledCache),
             'persistent_enabled' => null !== $this->cache,
         ];
+    }
+
+    /**
+     * A message, in debug only, when this template declares `{css}` / `{js}`
+     * that the document it is being rendered into does not carry.
+     *
+     * ⚠️ **THE FAILURE THIS EXISTS FOR IS SILENCE, NOT BREAKAGE.** The gather
+     * is a static walk of `{include:}` from the page root. A template reached
+     * any other way is invisible to it -- a widget names its partial at render
+     * time (ADR-135), so `{widget:nav:menu}`'s `{css}` was never gathered and
+     * the menu simply rendered unstyled. Nothing logged, nothing 500'd, and
+     * the person who eventually notices is looking at an unstyled block with
+     * no reason for it anywhere. The rule "a block owns its assets" was true
+     * everywhere except where it quietly was not.
+     *
+     * ⚠️ **A NOTICE AND NOT AN EXCEPTION, DELIBERATELY.** Throwing here would
+     * be worse than the silence it replaces: {@see \App\Navi\Infrastructure\Widget\NaviMenuWidgetRenderer}
+     * catches `Throwable` and degrades to an empty menu -- because it renders
+     * on every public page -- so a throw would turn an unstyled menu into a
+     * MISSING one, still silently. Every widget with that guard behaves the
+     * same way. The loss has to be reported through a channel the guard does
+     * not swallow, and the rendered document is that channel.
+     *
+     * ⚠️ **It checks the condition, not the cause.** It asks whether these
+     * declarations reached the head, so it catches every route around the walk
+     * -- a widget, a service rendering a partial on its own, a dynamically
+     * named include -- rather than only the one that was found first.
+     *
+     * No `_assets` key at all means nobody gathered, which is also worth
+     * saying: a host that forgets the pass loses every declaration on the page,
+     * and that shipped once already.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function ungatheredAssetNotice(TemplateNode $ast, array $data, string $templatePath): string
+    {
+        if (!$this->debug || [] === $ast->assets) {
+            return '';
+        }
+
+        $assets = $data['_assets'] ?? null;
+        $gathered = is_array($assets) && is_array($assets['keys'] ?? null) ? $assets['keys'] : null;
+
+        $missing = [];
+        foreach ($ast->assets as $asset) {
+            if (null === $gathered || !in_array($asset->key(), $gathered, true)) {
+                $missing[] = $asset->kind->value;
+            }
+        }
+
+        if ([] === $missing) {
+            return '';
+        }
+
+        return sprintf(
+            '<!-- dtmpl: %d asset block(s) declared by `%s` (%s) did not reach the document head%s. '
+            . 'The gather is a static walk of {include:} from the page root; a template reached any other way '
+            . '-- a widget naming its partial at render time, a service rendering it directly -- is not on that walk. '
+            . "Move the declaration into a template the page includes, or include this one. -->\n",
+            count($missing),
+            '' !== $templatePath ? $templatePath : '(inline source)',
+            implode(', ', $missing),
+            null === $gathered ? ' (nothing was gathered for this render at all)' : '',
+        );
     }
 
     /**
