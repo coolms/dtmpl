@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The config-backed widget→partial resolver: a configured key wins, an absent or
+ * The config-backed widget->partial resolver: a configured key wins, an absent or
  * blank entry falls through to the renderer's built-in default.
  */
 #[CoversClass(WidgetTemplateResolver::class)]

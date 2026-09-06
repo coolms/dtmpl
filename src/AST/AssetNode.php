@@ -7,7 +7,7 @@ namespace CoolMS\Dtmpl\AST;
 /**
  * A `{css}` ... `{endcss}` or `{js}` ... `{endjs}` block.
  *
- * ⚠️ THIS NODE IS NEVER EXECUTED. It is not in {@see TemplateNode::$children};
+ * !! THIS NODE IS NEVER EXECUTED. It is not in {@see TemplateNode::$children};
  * it lives in {@see TemplateNode::$assets}, which is metadata of the compiled
  * template rather than part of its output. A partial that declares a style
  * block emits nothing extra where the block was written -- the host gathers

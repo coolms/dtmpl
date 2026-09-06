@@ -17,7 +17,7 @@ use function is_string;
  */
 final readonly class WidgetTemplateResolver implements WidgetTemplateResolverInterface
 {
-    /** @param array<string, string> $overrides widget key ⇒ theme-partial path */
+    /** @param array<string, string> $overrides widget key => theme-partial path */
     public function __construct(private array $overrides = [])
     {
     }

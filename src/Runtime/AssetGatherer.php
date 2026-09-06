@@ -15,7 +15,7 @@ use CoolMS\Dtmpl\TemplateLoaderInterface;
  * Walks a compiled template and everything it includes, collecting the
  * `{css}` / `{js}` declarations into one deduplicated set.
  *
- * ⚠️ THIS IS A STATIC WALK AND THAT IS THE POINT. It follows every
+ * !! THIS IS A STATIC WALK AND THAT IS THE POINT. It follows every
  * {@see IncludeNode} it can see, including the ones inside `{if:}` branches
  * that this render will not take -- because "which branch runs" is a render
  * fact and the head is written before any of it happens. A page whose block
@@ -90,7 +90,7 @@ final class AssetGatherer
             try {
                 $source = $this->loader->load($include->templatePath, $path);
             } catch (TemplateException) {
-                // ⚠️ A missing partial is NOT reported here. This walk is a
+                // !! A missing partial is NOT reported here. This walk is a
                 // side pass whose only job is to collect declarations; the
                 // render that follows loads the same path through the same
                 // loader and raises the real error, with the real include
@@ -106,7 +106,7 @@ final class AssetGatherer
     /**
      * Every {@see IncludeNode} reachable from `$nodes`, in document order.
      *
-     * ⚠️ Reflective rather than a match over node types, deliberately. A body
+     * !! Reflective rather than a match over node types, deliberately. A body
      * -- a loop's, a conditional's two branches, a fill's, a slot's default --
      * is just a public array of {@see Node} on the node that owns it, and the
      * one thing this walk must never do is quietly stop seeing a construct
@@ -115,7 +115,7 @@ final class AssetGatherer
      * looks deliberate, which is the exact failure mode this whole mechanism
      * exists to remove.
      *
-     * ⚠️ `mixed[]`, not `Node[]`: the recursion feeds this every public ARRAY
+     * !! `mixed[]`, not `Node[]`: the recursion feeds this every public ARRAY
      * property it finds -- an IncludeNode's literal `$params`, a loop's
      * modifiers -- so the non-Node guard below is doing real work rather than
      * defending against an impossible type.

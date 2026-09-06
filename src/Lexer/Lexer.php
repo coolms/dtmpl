@@ -58,7 +58,7 @@ final class Lexer
      * every tag is `{keyword:argument}` and blocks close with `{endkeyword}`.
      * A second delimiter shape would buy three saved characters and cost that.
      *
-     * ⚠️ `comment` is NOT in {@see KeywordRegistry::KEYWORDS} and must not be.
+     * !! `comment` is NOT in {@see KeywordRegistry::KEYWORDS} and must not be.
      * Keywords there become tokens the parser expects to handle; a comment is
      * consumed here and never reaches the parser at all.
      */
@@ -75,7 +75,7 @@ final class Lexer
      * and a media query would nest them. There is no version of this construct
      * whose body is parsed.
      *
-     * ⚠️ Like `comment`, these are NOT in {@see KeywordRegistry::KEYWORDS} and
+     * !! Like `comment`, these are NOT in {@see KeywordRegistry::KEYWORDS} and
      * must not be: a keyword there becomes a token the parser routes through
      * `parseTag()`, and these are consumed whole right here.
      *
@@ -372,7 +372,7 @@ final class Lexer
     /**
      * Scan `{comment:...}` and emit nothing.
      *
-     * ⚠️ Terminates at the FIRST `}`, because the body is deliberately never
+     * !! Terminates at the FIRST `}`, because the body is deliberately never
      * parsed -- there is no string or brace tracking to tell an inner `}` from
      * the terminator. An inline comment therefore cannot contain `}`; the block
      * form has no such limit and is the answer when the note needs one.
@@ -430,15 +430,15 @@ final class Lexer
      * cursor on a real tag?".
      *
      * Behaviour at each `{`:
-     *   • `{{` -- escape, emit a single literal `{`
-     *   • `{` + registered-keyword → break so the dispatcher calls
+     *   - `{{` -- escape, emit a single literal `{`
+     *   - `{` + registered-keyword -> break so the dispatcher calls
      *     scanTag (already determined by isTagStart, but re-checked
      *     here defensively for the run-on case after a literal `{`)
-     *   • `{` + word that resembles a keyword (1-edit / anagram) →
+     *   - `{` + word that resembles a keyword (1-edit / anagram) ->
      *     SyntaxException with "Did you mean ..." hint. A near-miss is
      *     committed intent to write a tag, so a silent literal would
      *     mask the typo
-     *   • `{` + anything else → literal `{`, no error (code samples,
+     *   - `{` + anything else -> literal `{`, no error (code samples,
      *     JSON, set notation, prose all survive)
      *
      * `}` outside tag mode is always literal -- the closing brace

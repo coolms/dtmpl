@@ -10,7 +10,7 @@ namespace CoolMS\Dtmpl\AST;
 final readonly class TemplateNode extends Node
 {
     /**
-     * ⚠️ `$assets` is NOT part of `$children` and is never executed. It is the
+     * !! `$assets` is NOT part of `$children` and is never executed. It is the
      * template's `{css}` / `{js}` declarations, lifted out of the flow at parse
      * time so the host can gather them from the whole include tree before
      * rendering starts -- see {@see AssetNode}. Two lists, not one, because

@@ -63,7 +63,7 @@ final class Parser
         $children = [];
         $assets = [];
         while (!$this->isEof()) {
-            // ⚠️ The dispatch is on the TOKEN, not on parseAsset()'s return.
+            // !! The dispatch is on the TOKEN, not on parseAsset()'s return.
             // An empty `{css}{endcss}` yields no node and still consumed its
             // token, so treating "no node" as "not an asset block" walks into
             // parseNode() at EOF and reports `Unexpected token: EOF` -- which
@@ -85,7 +85,7 @@ final class Parser
      * Consume the `{css}` / `{js}` block the cursor is on, returning null when
      * its body is empty.
      *
-     * ⚠️ Only called from {@see parse()}, so an asset block is legal at the TOP
+     * !! Only called from {@see parse()}, so an asset block is legal at the TOP
      * LEVEL of a template and nowhere else -- inside a loop or a conditional
      * it reaches {@see parseNode()} and is refused by name. The restriction is
      * the construct's meaning, not an implementation limit: these declarations
@@ -111,7 +111,7 @@ final class Parser
 
         $this->advance();
 
-        // ⚠️ Refused at COMPILE time, where the author is looking at the file,
+        // !! Refused at COMPILE time, where the author is looking at the file,
         // rather than escaped at render time. The body is written into its
         // element verbatim -- there is no encoding that is correct inside both
         // `<style>` and `<script>` -- so its own closing tag would end the

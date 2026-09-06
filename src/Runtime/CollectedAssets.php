@@ -28,7 +28,7 @@ final readonly class CollectedAssets
          * The {@see \CoolMS\Dtmpl\AST\AssetNode::key()} of every declaration
          * that made it into this set.
          *
-         * ⚠️ Kept because the interesting question is about what is absent.
+         * !! Kept because the interesting question is about what is absent.
          * The two source lists answer "what goes in the head"; only the keys
          * answer "was this particular declaration reached", which is what lets
          * a render notice that its own `{css}` is not in the document it is
@@ -80,7 +80,7 @@ final readonly class CollectedAssets
     /**
      * The gathered CSS as one `<style>` element, or `''` when there is none.
      *
-     * ⚠️ Returns the EMPTY STRING rather than an empty element. A page with no
+     * !! Returns the EMPTY STRING rather than an empty element. A page with no
      * block styles should carry no evidence that the mechanism exists; an
      * always-present `<style></style>` is the kind of artifact that later gets
      * "fixed" by adding a condition in the layout, which puts the decision in
