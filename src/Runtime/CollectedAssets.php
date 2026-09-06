@@ -28,7 +28,7 @@ final readonly class CollectedAssets
          * The {@see \CoolMS\Dtmpl\AST\AssetNode::key()} of every declaration
          * that made it into this set.
          *
-         * ⚠️ Kept because the interesting question is about what is ABSENT.
+         * ⚠️ Kept because the interesting question is about what is absent.
          * The two source lists answer "what goes in the head"; only the keys
          * answer "was this particular declaration reached", which is what lets
          * a render notice that its own `{css}` is not in the document it is

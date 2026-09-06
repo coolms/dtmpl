@@ -165,7 +165,7 @@ final class AssetBlockTest extends TestCase
     }
 
     /**
-     * ⚠️ THE GAP THIS CLOSES IS SILENCE. The gather is a static walk of
+     * ⚠️ The gap this closes is silence. The gather is a static walk of
      * `{include:}` from the page root, so a template reached any other way is
      * invisible to it -- a widget names its partial at render time, and the
      * site menu's `{css}` was therefore never gathered and the menu rendered
