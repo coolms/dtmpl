@@ -8,6 +8,7 @@ use CoolMS\Dtmpl\Exception\SecurityException;
 use CoolMS\Dtmpl\Exception\TemplateException;
 use CoolMS\Dtmpl\Exception\UnknownFilterException;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -216,6 +217,58 @@ final class FilterRegistryTest extends TestCase
         $this->expectException(TemplateException::class);
 
         $this->registry->apply('nosuchfilter', 'x');
+    }
+
+    /**
+     * `escape` encodes the HTML around a url and leaves the scheme alone, which
+     * is why every block template that passed an author's url through it emitted
+     * a live `javascript:` link. These are the inputs that motivated the filter,
+     * kept as inputs so a future simplification has to answer them.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    public static function hrefFilterCases(): array
+    {
+        return [
+            ['javascript:alert(1)', ''],
+            ['java' . chr(9) . 'script:alert(1)', ''],
+            ['java' . chr(0) . 'script:alert(1)', ''],
+            ['JaVaScRiPt:alert(1)', ''],
+            ['  javascript:alert(1)', ''],
+            ['data:text/html;base64,PHM=', ''],
+            ['vbscript:msgbox', ''],
+            ['//evil.test/x', ''],
+            ['/' . chr(92) . 'evil.test/x', ''],
+            ['https://coolms.dev/a', 'https://coolms.dev/a'],
+            ['http://x.test', 'http://x.test'],
+            ['/docs/concepts', '/docs/concepts'],
+            ['#developers', '#developers'],
+            ['?page=2', '?page=2'],
+            ['mailto:a@b.test', 'mailto:a@b.test'],
+            ['tel:+15551234', 'tel:+15551234'],
+            // A colon after a slash is a path with a colon in it, not a scheme.
+            ['docs/a:b', 'docs/a:b'],
+            ['', ''],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('hrefFilterCases')]
+    public function hrefAcceptsNavigableUrlsAndRejectsSchemes(string $input, string $expected): void
+    {
+        self::assertSame($expected, $this->registry->apply('href', $input));
+    }
+
+    #[Test]
+    public function hrefLeavesEncodingToTheOutputStage(): void
+    {
+        // A plain string, deliberately: Output::emit() still encodes it, so the
+        // two compose instead of one doing the other's job. A filter returning
+        // HtmlSafe here would suppress the quoting it does not perform.
+        $out = $this->registry->apply('href', 'https://x.test/?a=1&b=2');
+
+        self::assertSame('https://x.test/?a=1&b=2', $out);
+        self::assertIsString($out);
     }
 
     protected function setUp(): void

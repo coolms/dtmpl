@@ -179,6 +179,69 @@ final class FilterRegistry
         // Dangerous by design: only for HTML you control.
         $this->register('raw', static fn ($v) => RenderedHtml::of($v));
 
+        // A url that is safe to put in an `href` or `src`.
+        //
+        // `escape` is not enough, and reads as though it were: it encodes the
+        // HTML around the value and leaves the SCHEME intact, so
+        // `javascript:alert(1)` survives it unchanged and fires on click.
+        // Encoding answers "can this break out of the attribute". It does not
+        // answer "is this a url the page should navigate to".
+        //
+        // Returns a plain string so Output::emit() still encodes it. The two
+        // compose: this one decides the scheme, that one decides the quoting,
+        // and neither is asked to do the other's job.
+        //
+        // An unacceptable url becomes the empty string rather than a removed
+        // attribute, because a filter cannot delete the markup around it. A
+        // template that would rather omit the link entirely should test the
+        // value before rendering the anchor.
+        $this->register('href', static function ($value): string {
+            // Control characters are stripped ANYWHERE, not trimmed. A browser
+            // ignores them inside a scheme, so an interior tab or NUL makes
+            // `java<TAB>script:` live while a prefix check on the raw string
+            // sees something harmless.
+            $url = (string) preg_replace('/[\x00-\x20\x7F]+/', '', Output::stringify($value));
+            if ('' === $url) {
+                return '';
+            }
+
+            // Backslashes fold to slashes in every browser's url parser, so the
+            // checks below run against the folded form. chr(92) rather than a
+            // literal: at this depth of quoting a lone backslash is unreadable.
+            $folded = str_replace(chr(92), '/', $url);
+
+            // Anchors and bare queries address this document -- no scheme, no
+            // authority, nothing to smuggle.
+            if (str_starts_with($folded, '#') || str_starts_with($folded, '?')) {
+                return $url;
+            }
+
+            // Authority-relative: `//evil.com` is an off-site link wearing a
+            // first-party spelling, and it inherits the page's scheme rather
+            // than declaring one.
+            if (str_starts_with($folded, '//')) {
+                return '';
+            }
+
+            if (str_starts_with($folded, '/')) {
+                return $url;
+            }
+
+            // A scheme is what precedes the first colon, but only when that
+            // colon comes before the first slash. `docs/a:b` is a path with a
+            // colon in it, and rejecting it would break links this filter has
+            // no business having an opinion about.
+            $colon = strpos($folded, ':');
+            $slash = strpos($folded, '/');
+            if (false === $colon || (false !== $slash && $slash < $colon)) {
+                return $url;
+            }
+
+            return in_array(strtolower(substr($folded, 0, $colon)), ['http', 'https', 'mailto', 'tel'], true)
+                ? $url
+                : '';
+        });
+
         // Default value
         $this->register('default', fn ($v, $default = '') => $v ?: $default);
 
