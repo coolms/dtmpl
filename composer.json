@@ -3,7 +3,14 @@
     "description": "DTMPL template engine: a designer-facing template language with a lexer, parser, AST and runtime, plus a widget seam for host-supplied components",
     "type": "library",
     "license": "MIT",
-    "keywords": ["template", "template-engine", "dtmpl", "parser", "ast", "cms"],
+    "keywords": [
+        "template",
+        "template-engine",
+        "dtmpl",
+        "parser",
+        "ast",
+        "cms"
+    ],
     "authors": [
         {
             "name": "Dmitry Popov"
@@ -36,5 +43,35 @@
         "sort-packages": true
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "extra": {
+        "coolms": {
+            "docs": {
+                "index": "README.md",
+                "section": "modules",
+                "pages": [
+                    {
+                        "path": "docs/language.md",
+                        "title": "The DTMPL language",
+                        "order": 10
+                    },
+                    {
+                        "path": "docs/filters.md",
+                        "title": "Filters",
+                        "order": 20
+                    },
+                    {
+                        "path": "docs/loaders.md",
+                        "title": "Loaders",
+                        "order": 30
+                    },
+                    {
+                        "path": "docs/widgets.md",
+                        "title": "Widgets",
+                        "order": 40
+                    }
+                ]
+            }
+        }
+    }
 }
