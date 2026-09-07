@@ -48,7 +48,7 @@ final class LexerCommentTest extends TestCase
     #[Test]
     public function theContentsReachNeitherOutputMode(): void
     {
-        // ⚠️ The test this file exists for. `Text` mode turns ENCODING off, so
+        // !! The test this file exists for. `Text` mode turns ENCODING off, so
         // a comment stripped by an encoder rather than by the lexer would
         // survive here -- which is why both modes are asserted rather than
         // trusting that one implies the other.

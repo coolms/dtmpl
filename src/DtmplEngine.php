@@ -10,6 +10,8 @@ use CoolMS\Dtmpl\Exception\TemplateNotFoundException;
 use CoolMS\Dtmpl\Lexer\Lexer;
 use CoolMS\Dtmpl\Optimizer\WhitespaceTrimmer;
 use CoolMS\Dtmpl\Parser\Parser;
+use CoolMS\Dtmpl\Runtime\AssetGatherer;
+use CoolMS\Dtmpl\Runtime\CollectedAssets;
 use CoolMS\Dtmpl\Runtime\ConstantProviderInterface;
 use CoolMS\Dtmpl\Runtime\Executor;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
@@ -44,7 +46,7 @@ final class DtmplEngine implements TemplateCompilerInterface
      * constructor property, a removed one, a changed type). Old entries
      * then age out under their own keys instead of being read back.
      */
-    private const string AST_VERSION = '2';
+    private const string AST_VERSION = '3';
 
     private readonly Lexer $lexer;
     private readonly Parser $parser;
@@ -53,6 +55,9 @@ final class DtmplEngine implements TemplateCompilerInterface
 
     /** @var array<string, TemplateNode> */
     private array $compiledCache = [];
+
+    /** @var array<string, CollectedAssets> */
+    private array $gatheredAssets = [];
 
     /** @var ConstantProviderInterface[] */
     private array $constantProviders = [];
@@ -82,6 +87,7 @@ final class DtmplEngine implements TemplateCompilerInterface
             widgets: $widgets,
             translator: $translator,
             outputMode: $outputMode,
+            debug: $debug,
         );
     }
 
@@ -126,7 +132,8 @@ final class DtmplEngine implements TemplateCompilerInterface
     {
         $ast = $this->compile($template);
 
-        return $this->executor->execute($ast, $this->mergeConstants($data), $templatePath);
+        return $this->ungatheredAssetNotice($ast, $data, $templatePath)
+            . $this->executor->execute($ast, $this->mergeConstants($data), $templatePath);
     }
 
     /**
@@ -142,6 +149,33 @@ final class DtmplEngine implements TemplateCompilerInterface
         $template = (string) file_get_contents($path);
 
         return $this->render($template, $data, $path);
+    }
+
+    /**
+     * The `{css}` / `{js}` declared by `$source` and everything it includes.
+     *
+     * The host calls this BEFORE rendering and puts the result where the
+     * document head can reach it -- which is the whole reason the gather is a
+     * separate pass rather than something the Executor accumulates as it goes.
+     * By the time a block partial renders, the `<head>` is already bytes on
+     * the wire; anything collected during the render can only be written after
+     * the markup that needed it.
+     *
+     * Requires a loader (bound via {@see withLoader()}) to follow includes;
+     * without one it returns only what the root template itself declares.
+     *
+     * @param string $templatePath VFS path of `$source`, for relative include resolution
+     *
+     * @throws InvalidArgumentException
+     */
+    public function gatherAssets(string $source, string $templatePath = ''): CollectedAssets
+    {
+        // Per-instance memo only. `withLoader()` clones the engine for each
+        // render, so this lives exactly as long as the loader chain whose
+        // answers it caches -- a memo keyed on source alone, on the shared
+        // engine, would hand one theme's block styles to the next theme's page.
+        return $this->gatheredAssets[md5($templatePath . "\0" . $source)] ??=
+            new AssetGatherer($this->loader, $this)->gather($this->compile($source), $templatePath);
     }
 
     /**
@@ -288,6 +322,70 @@ final class DtmplEngine implements TemplateCompilerInterface
             'in_memory_count' => count($this->compiledCache),
             'persistent_enabled' => null !== $this->cache,
         ];
+    }
+
+    /**
+     * A message, in debug only, when this template declares `{css}` / `{js}`
+     * that the document it is being rendered into does not carry.
+     *
+     * !! **The failure this exists for is silence, not breakage.** The gather
+     * is a static walk of `{include:}` from the page root. A template reached
+     * any other way is invisible to it -- a widget names its partial at render
+     * time, so `{widget:nav:menu}`'s `{css}` was never gathered and
+     * the menu simply rendered unstyled. Nothing logged, nothing 500'd, and
+     * the person who eventually notices is looking at an unstyled block with
+     * no reason for it anywhere. The rule "a block owns its assets" was true
+     * everywhere except where it quietly was not.
+     *
+     * !! **A notice and not an exception, deliberately.** Throwing here would
+     * be worse than the silence it replaces: a widget renderer that runs on
+     * every public page catches `Throwable` and degrades to an empty result,
+     * so a throw would turn an unstyled block into a missing one, still
+     * silently. Every widget with that guard behaves the same way. The loss
+     * has to be reported through a channel the guard does not swallow, and
+     * the rendered document is that channel.
+     *
+     * !! **It checks the condition, not the cause.** It asks whether these
+     * declarations reached the head, so it catches every route around the walk
+     * -- a widget, a service rendering a partial on its own, a dynamically
+     * named include -- rather than only the one that was found first.
+     *
+     * No `_assets` key at all means nobody gathered, which is also worth
+     * saying: a host that forgets the pass loses every declaration on the page,
+     * and that shipped once already.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function ungatheredAssetNotice(TemplateNode $ast, array $data, string $templatePath): string
+    {
+        if (!$this->debug || [] === $ast->assets) {
+            return '';
+        }
+
+        $assets = $data['_assets'] ?? null;
+        $gathered = is_array($assets) && is_array($assets['keys'] ?? null) ? $assets['keys'] : null;
+
+        $missing = [];
+        foreach ($ast->assets as $asset) {
+            if (null === $gathered || !in_array($asset->key(), $gathered, true)) {
+                $missing[] = $asset->kind->value;
+            }
+        }
+
+        if ([] === $missing) {
+            return '';
+        }
+
+        return sprintf(
+            '<!-- dtmpl: %d asset block(s) declared by `%s` (%s) did not reach the document head%s. '
+            . 'The gather is a static walk of {include:} from the page root; a template reached any other way '
+            . '-- a widget naming its partial at render time, a service rendering it directly -- is not on that walk. '
+            . "Move the declaration into a template the page includes, or include this one. -->\n",
+            count($missing),
+            '' !== $templatePath ? $templatePath : '(inline source)',
+            implode(', ', $missing),
+            null === $gathered ? ' (nothing was gathered for this render at all)' : '',
+        );
     }
 
     /**

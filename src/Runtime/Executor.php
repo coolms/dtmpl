@@ -50,6 +50,11 @@ final class Executor
         private readonly ?WidgetRegistry $widgets = null,
         private readonly ?TranslatorInterface $translator = null,
         private readonly OutputMode $outputMode = OutputMode::Html,
+        /**
+         * Turns on the report for a `{fill}` whose partial declares no matching
+         * `{slot}`. Off by default, so a production render is never annotated.
+         */
+        private readonly bool $debug = false,
     ) {
     }
 
@@ -502,11 +507,89 @@ final class Executor
         $this->currentPath = $resolvedPath;
 
         try {
-            return $this->executeTemplate($partialAst, $partialContext);
+            return $this->unfilledSlotNotice($node, $partialAst, $fillMap)
+                . $this->executeTemplate($partialAst, $partialContext);
         } finally {
             $this->currentPath = $previousPath;
             array_pop($this->includeStack);
         }
+    }
+
+    /**
+     * A message, in debug only, when a `{fill}` names a slot the partial does
+     * not declare.
+     *
+     * Filling a slot that does not exist is almost always a typo, and today it
+     * costs nothing and says nothing: the fill body is rendered, put in the
+     * `__slots` map, and never read. The page comes back missing whatever the
+     * fill was for, with no clue which end is wrong.
+     *
+     * It cost a debugging session on this site. The landing page filled
+     * `{fill:head}`, `layouts/site.html.dtmpl` declared `styles`, and the two
+     * never met -- so a stylesheet evaporated and the symptom was a page with
+     * no palette, three layers away from the typo.
+     *
+     * Not an exception: an unread fill is inert, and a template that renders
+     * slightly wrong is better than a page that 500s over a name. Debug-only,
+     * because the notice is markup and a visitor should never meet it.
+     *
+     * @param array<string, string> $fillMap
+     */
+    private function unfilledSlotNotice(IncludeNode $node, TemplateNode $partial, array $fillMap): string
+    {
+        if (!$this->debug || [] === $fillMap) {
+            return '';
+        }
+
+        $declared = $this->slotNamesIn($partial->children);
+        $missing = array_diff(array_keys($fillMap), $declared);
+        if ([] === $missing) {
+            return '';
+        }
+
+        return sprintf(
+            "<!-- dtmpl: {include:%s} fills %s, which that partial does not declare as a {slot}. "
+            . "The fill body is rendered and then discarded, so whatever it was for is simply absent. "
+            . "Declared there: %s. -->\n",
+            $node->templatePath,
+            implode(', ', array_map(static fn (string $n): string => '`' . $n . '`', $missing)),
+            [] === $declared ? 'no slots at all' : implode(', ', $declared),
+        );
+    }
+
+    /**
+     * Every slot name reachable from these nodes, at any depth.
+     *
+     * Reflective for the same reason {@see \CoolMS\Dtmpl\Runtime\AssetGatherer}
+     * is: a slot inside an `{if}` branch or a `{loop}` body is still declared,
+     * and a walk that enumerates node types stops seeing constructs the day one
+     * is added. Reporting a slot as missing when it is merely nested would make
+     * this worse than silence.
+     *
+     * @param mixed[] $nodes
+     *
+     * @return list<string>
+     */
+    private function slotNamesIn(array $nodes): array
+    {
+        $found = [];
+        foreach ($nodes as $child) {
+            if (!$child instanceof Node) {
+                continue;
+            }
+            if ($child instanceof SlotNode) {
+                $found[] = $child->name;
+            }
+            foreach (get_object_vars($child) as $value) {
+                if ($value instanceof Node) {
+                    $found = [...$found, ...$this->slotNamesIn([$value])];
+                } elseif (is_array($value)) {
+                    $found = [...$found, ...$this->slotNamesIn($value)];
+                }
+            }
+        }
+
+        return array_values(array_unique($found));
     }
 
     /**

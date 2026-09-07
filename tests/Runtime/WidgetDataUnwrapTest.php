@@ -101,7 +101,7 @@ final class WidgetDataUnwrapTest extends TestCase
         self::assertSame('<p>Hi Ada</p>', $engine->render('<p>{widget:greet}</p>'));
     }
 
-    /** @param array<string, string> $map path → source */
+    /** @param array<string, string> $map path -> source */
     private function loaderWith(array $map): TemplateLoaderInterface
     {
         return new class($map) implements TemplateLoaderInterface {

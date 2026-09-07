@@ -21,12 +21,12 @@ use PHPUnit\Framework\TestCase;
  * letters spell a registered keyword. This file covers all six
  * dispatch branches:
  *
- *   1. `{` + registered-keyword → tag mode (existing happy path)
- *   2. `{` + word that resembles a keyword → SyntaxException + hint
- *   3. `{` + word far from any keyword → literal `{`
- *   4. `{` + non-letter (digit / symbol / whitespace / EOF) → literal
- *   5. `}` outside tag mode → literal, never error
- *   6. `{{` / `}}` → literal `{` / `}` (escape preserved)
+ *   1. `{` + registered-keyword -> tag mode (existing happy path)
+ *   2. `{` + word that resembles a keyword -> SyntaxException + hint
+ *   3. `{` + word far from any keyword -> literal `{`
+ *   4. `{` + non-letter (digit / symbol / whitespace / EOF) -> literal
+ *   5. `}` outside tag mode -> literal, never error
+ *   6. `{{` / `}}` -> literal `{` / `}` (escape preserved)
  *
  * Plus the strict whitespace rule inside tag mode: the keyword/`:`/
  * first-arg sequence must be adjacent (`{var :name}` and `{var: x}`
@@ -81,7 +81,7 @@ final class LexerStrictModeTest extends TestCase
             '{foobar:x}',
         ];
         yield 'word two chars longer than nearest keyword' => [
-            // 'loopy' length 5 vs 'loop' length 4 -- diff 1, levenshtein 1 → would resemble.
+            // 'loopy' length 5 vs 'loop' length 4 -- diff 1, levenshtein 1 -> would resemble.
             // Use length-2 diff instead: 'loopyy' vs 'loop' -- not resemblance.
             '{loopyy:items}',
         ];
@@ -143,7 +143,7 @@ final class LexerStrictModeTest extends TestCase
         yield 'include' => ['{include:other}'];
     }
 
-    // ── 1. Literal `{` survives in code samples / JSON / prose ─────────
+    // -- 1. Literal `{` survives in code samples / JSON / prose ---------
 
     #[Test]
     #[DataProvider('literalPassthroughCases')]
@@ -152,7 +152,7 @@ final class LexerStrictModeTest extends TestCase
         self::assertSame($input, $this->renderText($this->lexer->tokenize($input)));
     }
 
-    // ── 2. Resemblance throws with did-you-mean ─────────────────────────
+    // -- 2. Resemblance throws with did-you-mean -------------------------
 
     #[Test]
     #[DataProvider('resemblanceCases')]
@@ -163,7 +163,7 @@ final class LexerStrictModeTest extends TestCase
         $this->lexer->tokenize($input);
     }
 
-    // ── 3. Registered keywords still parse as tags ──────────────────────
+    // -- 3. Registered keywords still parse as tags ----------------------
 
     #[Test]
     #[DataProvider('keywordTagCases')]
@@ -181,7 +181,7 @@ final class LexerStrictModeTest extends TestCase
         self::assertTrue($hasOpenBrace, 'Expected at least one OpenBrace token for registered keyword');
     }
 
-    // ── 4. `}` outside tag mode is always literal ───────────────────────
+    // -- 4. `}` outside tag mode is always literal -----------------------
 
     #[Test]
     public function standaloneClosingBraceIsLiteral(): void
@@ -196,11 +196,11 @@ final class LexerStrictModeTest extends TestCase
     {
         $input = 'a } b }} c }';
         $tokens = $this->lexer->tokenize($input);
-        // }} → literal }, single } → literal }, so 'a } b } c }'
+        // }} -> literal }, single } -> literal }, so 'a } b } c }'
         self::assertSame('a } b } c }', $this->renderText($tokens));
     }
 
-    // ── 5. {{ and }} escapes still work ────────────────────────────────
+    // -- 5. {{ and }} escapes still work --------------------------------
 
     #[Test]
     public function doubleOpenBraceProducesLiteralOpen(): void
@@ -216,7 +216,7 @@ final class LexerStrictModeTest extends TestCase
         self::assertSame('text}', $this->renderText($tokens));
     }
 
-    // ── 6. Strict whitespace inside tag mode ───────────────────────────
+    // -- 6. Strict whitespace inside tag mode ---------------------------
 
     #[Test]
     public function whitespaceBetweenKeywordAndColonThrows(): void
@@ -279,7 +279,7 @@ final class LexerStrictModeTest extends TestCase
         $this->lexer = new Lexer();
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────
+    // -- Helpers --------------------------------------------------------
 
     /**
      * Concatenate all Text-token values in order. Use only for

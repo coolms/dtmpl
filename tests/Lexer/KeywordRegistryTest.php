@@ -52,7 +52,7 @@ final class KeywordRegistryTest extends TestCase
         self::assertFalse(KeywordRegistry::isKeyword($candidate));
     }
 
-    // ── Resemblance: anagram (Tier 1) ──────────────────────────────────
+    // -- Resemblance: anagram (Tier 1) ----------------------------------
 
     #[Test]
     public function anagramOfVarReturnsVar(): void
@@ -66,7 +66,7 @@ final class KeywordRegistryTest extends TestCase
         self::assertSame('loop', KeywordRegistry::findResemblance('lopo'));
     }
 
-    // ── Resemblance: single substitution (Tier 2) ──────────────────────
+    // -- Resemblance: single substitution (Tier 2) ----------------------
 
     #[Test]
     public function singleSubstitutionOfVarReturnsVar(): void
@@ -80,7 +80,7 @@ final class KeywordRegistryTest extends TestCase
         self::assertSame('if', KeywordRegistry::findResemblance('it'));
     }
 
-    // ── Resemblance: single insertion / deletion (Tier 3) ──────────────
+    // -- Resemblance: single insertion / deletion (Tier 3) --------------
 
     #[Test]
     public function singleInsertionOfVarReturnsVar(): void
@@ -100,7 +100,7 @@ final class KeywordRegistryTest extends TestCase
         self::assertSame('loop', KeywordRegistry::findResemblance('lop'));
     }
 
-    // ── Resemblance: no hit ────────────────────────────────────────────
+    // -- Resemblance: no hit --------------------------------------------
 
     #[Test]
     public function emptyCandidateReturnsNull(): void
@@ -117,7 +117,7 @@ final class KeywordRegistryTest extends TestCase
     #[Test]
     public function exactKeywordReturnsItself(): void
     {
-        // `count_chars` of var equals count_chars of var → tier-1 hit.
+        // `count_chars` of var equals count_chars of var -> tier-1 hit.
         // The function returns the matching keyword either way; useful
         // for callers that want "did you mean" even on an exact lookup
         // (though the lexer's isKeyword check intercepts that path).
@@ -127,7 +127,7 @@ final class KeywordRegistryTest extends TestCase
     #[Test]
     public function differenceOfTwoCharsReturnsNull(): void
     {
-        // 'loopyy' vs 'loop' -- len diff 2 → no tier matches.
+        // 'loopyy' vs 'loop' -- len diff 2 -> no tier matches.
         self::assertNull(KeywordRegistry::findResemblance('loopyy'));
     }
 }

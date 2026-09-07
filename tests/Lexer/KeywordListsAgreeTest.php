@@ -23,7 +23,7 @@ use function sort;
  * "mirrors the Lexer's internal map" -- which is a statement of intent, not a
  * mechanism.
  *
- * ⚠️ The pre-existing `KeywordRegistryTest` cannot catch a divergence: it
+ * !! The pre-existing `KeywordRegistryTest` cannot catch a divergence: it
  * iterates `KeywordRegistry::KEYWORDS` and asserts `isKeyword()` accepts each
  * one, so it only ever compares the registry with itself. Add a keyword to the
  * Lexer alone and every test stays green while the strict pass treats the new
