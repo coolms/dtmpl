@@ -87,7 +87,7 @@ final class LexerStrictModeTest extends TestCase
         ];
         yield 'brace then mixed content with closing braces' => [
             // Two-char identifiers chosen deliberately -- single letters
-            // now resemble the F5.a.4 `t` keyword (length 1, substitution
+            // now resemble the `t` keyword (length 1, substitution
             // distance 1) so they would trip the strict-mode hint. `aa`
             // and `bb` are length 2 with no keyword neighbour.
             'A {aa} B {bb} C',

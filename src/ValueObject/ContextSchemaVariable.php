@@ -53,7 +53,7 @@ final readonly class ContextSchemaVariable
             'filters' => $this->filters,
             'loopAlias' => $this->loopAlias,
         ];
-        // Emit Phase 2 fields only when non-default -- keeps the
+        // Emit the extended fields only when non-default -- keeps the
         // persisted JSON narrow for legacy schemas, and lets the
         // hydration parser cleanly distinguish "feature unused"
         // from "feature opted in".
