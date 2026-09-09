@@ -37,8 +37,8 @@ use InvalidArgumentException;
  * Both lazy paths defer construction past the point where the containing
  * DtmplEngine is stored in the DI container, which is what breaks the
  * constructor-arg cycle between DtmplEngine and DocumentFormatProviderRegistry
- * (via DocumentWidgetRenderer -> WordFormatProvider) that ADR-118 was written
- * for. Keying changes how MANY get built, not WHEN.
+ * (via DocumentWidgetRenderer -> WordFormatProvider). Keying changes how
+ * MANY get built, not WHEN.
  */
 final class WidgetRegistry
 {

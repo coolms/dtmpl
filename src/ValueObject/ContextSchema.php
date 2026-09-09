@@ -41,8 +41,8 @@ final readonly class ContextSchema
     /**
      * Reconstruct from the persisted `DocumentTemplate.contextSchema`
      * array shape (JSON column round-trip). Tolerant of legacy rows
-     * that pre-date Phase 2 (the new `entityType` / `collection` /
-     * `fields` keys default to their pre-Phase-2 values). Returns
+     * that pre-date the schema extension (the new `entityType` /
+     * `collection` / `fields` keys default to their older values). Returns
      * `null` when the input is null/empty so consumers can
      * short-circuit on templates that ship no schema at all.
      *
