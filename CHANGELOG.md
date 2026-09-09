@@ -10,45 +10,30 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.1.0 - 2026-09-10
 
-### Open question: should a fill with no matching slot be an error in debug?
+Additive throughout: nothing was removed and no public signature changed, so
+`^2.0` keeps resolving and no consumer manifest moves. The number goes up for
+new template syntax, a new loader and a new filter.
 
-Not a change -- a decision to take. Recorded here because it was found the
-expensive way and will be found that way again otherwise.
+### Added: an `href` filter, because `escape` answers a different question
 
-`{include:}` renders every fill body into a map and passes it to the partial;
-`{slot:}` looks its own name up. A fill whose name nothing looks up is never
-read, and nothing reports it. On a real site this rendered a page in the wrong
-palette for two commits with no error, no warning and no log line, because an
-intermediate layout did not forward the slot the page was filling.
+A block field holding `javascript:alert(1)` reached the page intact through
+`{var:block.ctaUrl escape}`. `escape` answers "can this break out of the
+attribute"; it reads as though it answered "is this a URL the page should
+navigate to". It does not, and the gap is silent, because encoded output looks
+exactly like safe output.
 
-Filling a slot that does not exist is almost always a typo or a broken layout
-chain rather than an intention. Nobody writes a fill they mean to be discarded.
+`href` answers the second question. Control characters are stripped ANYWHERE
+rather than trimmed, since a browser ignores them inside a scheme and an
+interior tab or NUL makes a scheme live while a prefix check on the raw string
+sees something harmless. Backslashes fold to slashes before the checks, as every
+browser's URL parser folds them. Authority-relative `//host` is rejected: an
+off-site link wearing a first-party spelling. A colon counts as a scheme only
+when it precedes the first slash, so `docs/a:b` stays a path this filter has no
+business having an opinion about.
 
-**Both detection points are feasible, and they catch different things.**
-
-*At render time* -- `executeInclude` already builds the fill map, and
-`executeSlot` is the only thing that reads it. Marking a name as consumed and
-reporting the leftovers when the partial finishes is a handful of lines, has
-**no false positives at all**, and fires exactly when the author loads the page
-they broke. It only sees paths that actually render.
-
-*Statically* -- slot names are literals in the AST, so "which names does this
-partial accept?" is answerable by walking it and following its includes, which
-is the walk `AssetGatherer` already performs. It covers branches a given render
-does not take. The subtlety is that a forwarded slot (`{fill:x}{slot:x}{endfill}`)
-means the accepted set includes names appearing inside fill bodies, not only
-top-level slots -- miss that and the check reports a false positive on the
-correct idiom.
-
-**Recommendation: render time, debug only, as a thrown exception rather than a
-log line.** A silent failure is not fixed by a diagnostic nobody reads, and a
-template that fills nothing is not a template anybody wanted to ship. The
-static version is the better long-term answer and the riskier first move.
-
-!! Deliberately NOT implemented here. This package is published, so a new
-failure mode is a release decision rather than a drive-by.
+Use it on any value that becomes an `href` or `src`.
 
 ### Added: `{css}` ... `{endcss}` and `{js}` ... `{endjs}`
 
@@ -97,6 +82,65 @@ text `{comment}` or `{comment:`, which previously rendered as itself.
 Also: contributor documentation (`CONTRIBUTING.md`), describing the Tuesday
 release train, the deprecation window, and how this package's version number
 relates to the CoolMS platform packages.
+
+### Added: `VfsTemplateLoader`
+
+It implements this package's `PrioritizedLoaderInterface`, takes this package's
+`TemplateStorageInterface` and throws this package's `TemplateException`, naming
+no type from anywhere else -- so it was this engine's adapter living in the
+contracts package, and the sole reason that package imported a template engine.
+It lands beside `FilesystemTemplateLoader`, which is the same shape over
+different storage. Nothing published ever shipped it from its old home, so
+nothing has to be migrated.
+
+### Changed: a fill whose partial declares no such slot is now reported
+
+**This answers the open question that stood in this section, and answers it
+differently.** That note recommended a thrown exception in debug; the
+implementation emits a notice.
+
+`{fill:name}` against a partial with no `{slot:name}` was inert and silent: the
+body rendered, went into the slot map and was never read, so the page came back
+missing whatever the fill was for with nothing saying which end was wrong. It
+cost a session on a real site -- a page filled `head`, the layout declared
+`styles`, and the token set evaporated three layers from the typo.
+
+A notice rather than an exception, because an unread fill is harmless in itself
+and a template that renders is worth more than a template that is right. The
+slot walk is reflective: a slot inside an `{if}` branch or a `{loop}` body still
+counts as declared, since reporting it missing would send a reader hunting a typo
+that is not there.
+
+### Changed: an asset block that never reached the document head is now reported
+
+The gather is a static walk of `{include:}` from the page root, so a template
+reached any other way -- a widget names its partial at render time -- is
+invisible to it, and a `{css}` block inside one was silently dropped. A notice
+again, and deliberately: a menu widget catches `Throwable` and degrades to an
+empty menu on every public page, so throwing would turn an unstyled menu into no
+menu. The problem was the silence, not the limitation.
+
+### Changed: a widget lookup builds one renderer, not all of them
+
+`WidgetRegistry` could only learn a renderer's key by constructing it, so the
+first widget lookup on a page constructed every registered renderer and whatever
+each constructor pulls in. `registerKeyed(key, factory)` takes the key from the
+caller, so `has()`, `get()` and `isExactMatch()` answer from the key alone and
+build only what they matched. `registerLazy()` stays for renderers whose key is
+not known at compile time; behaviour is unchanged and only the count moves.
+
+### Also
+
+- `CONTRIBUTING.md`, describing the release train, the deprecation window and how
+  this package's version relates to the platform packages.
+- The package declares its own documentation in the manifest.
+- A test asserts that every imported sibling class exists in the installed tree,
+  reporting every file that imports an absent one rather than stopping at the
+  first, and another asserts the two keyword lists agree.
+- Comments, docblocks and changelogs are ascii and no longer carry identifiers a
+  reader outside this organisation cannot resolve.
+- Development-only files are export-ignored, so `composer require` no longer
+  downloads them.
 
 ## 2.0.0 - 2026-08-26
 
