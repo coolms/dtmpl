@@ -12,6 +12,11 @@ same commit as the change it describes.
 
 ## 2.1.0 - 2026-09-10
 
+!! Cut from `develop`, before the branch rule existed. From 2026-09-10 the rule
+is that alphas are cut from `develop` and beta and stable from `main`; this tag
+predates it and stands as it is. Nothing was deleted and no tag was moved. The
+next version on this line is promoted into `main` first and tagged from there.
+
 Additive throughout: nothing was removed and no public signature changed, so
 `^2.0` keeps resolving and no consumer manifest moves. The number goes up for
 new template syntax, a new loader and a new filter.
