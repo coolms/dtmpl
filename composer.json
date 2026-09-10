@@ -45,6 +45,9 @@
     "minimum-stability": "stable",
     "prefer-stable": true,
     "extra": {
+        "branch-alias": {
+            "dev-develop": "2.1.x-dev"
+        },
         "coolms": {
             "docs": {
                 "index": "README.md",
