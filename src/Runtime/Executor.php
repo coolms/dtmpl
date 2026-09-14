@@ -548,8 +548,8 @@ final class Executor
         }
 
         return sprintf(
-            "<!-- dtmpl: {include:%s} fills %s, which that partial does not declare as a {slot}. "
-            . "The fill body is rendered and then discarded, so whatever it was for is simply absent. "
+            '<!-- dtmpl: {include:%s} fills %s, which that partial does not declare as a {slot}. '
+            . 'The fill body is rendered and then discarded, so whatever it was for is simply absent. '
             . "Declared there: %s. -->\n",
             $node->templatePath,
             implode(', ', array_map(static fn (string $n): string => '`' . $n . '`', $missing)),
@@ -560,7 +560,7 @@ final class Executor
     /**
      * Every slot name reachable from these nodes, at any depth.
      *
-     * Reflective for the same reason {@see \CoolMS\Dtmpl\Runtime\AssetGatherer}
+     * Reflective for the same reason {@see AssetGatherer}
      * is: a slot inside an `{if}` branch or a `{loop}` body is still declared,
      * and a walk that enumerates node types stops seeing constructs the day one
      * is added. Reporting a slot as missing when it is merely nested would make
