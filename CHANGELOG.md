@@ -12,6 +12,13 @@ same commit as the change it describes.
 
 ## Unreleased
 
+### Added
+
+- Declares `support` -- `issues` and `source` -- so a page imported from this
+  package, and the catalogue, know where a correction is filed. Packagist filled
+  the gap from GitHub when the manifest was silent; the declared field is the
+  one that holds on any registry.
+
 ### Fixed: the lexer no longer re-walks the source for every character it reads
 
 `Lexer::peek()` and `Lexer::advance()` called `mb_substr($source, $n, 1)` once

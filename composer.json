@@ -16,6 +16,10 @@
             "name": "Dmitry Popov"
         }
     ],
+    "support": {
+        "issues": "https://github.com/coolms/dtmpl/issues",
+        "source": "https://github.com/coolms/dtmpl"
+    },
     "require": {
         "php": "^8.5",
         "psr/cache": "^2.0 || ^3.0",
