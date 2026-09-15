@@ -10,7 +10,12 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.2.0 - 2026-09-15
+
+The first version on this line cut under the branch rule: `develop` was
+promoted into `main` and the tag taken from there. Consumers that pinned the
+engine to its development branch while this class was unreleased can drop
+the pin: `^2.2` resolves to a tag now.
 
 Additive: nothing was removed and no public signature changed. The number goes
 up a minor for a new class and a new port, and `dev-develop` is aliased to the
