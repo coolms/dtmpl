@@ -6,10 +6,10 @@ namespace CoolMS\Dtmpl\ValueObject;
 
 /**
  * Lightweight schema describing the DTMPL surface area of a document
- * template. F.13a populates this on upload by lexing + parsing the
- * extracted DOCX text and walking the AST; downstream UI (Document
- * Library detail panel, future "fill template" form) renders the
- * schema as hints.
+ * template. `Validation\DtmplSyntaxValidator` populates it by lexing and
+ * parsing the template text and walking the AST; a host's UI (a template
+ * library's detail panel, a "fill template" form) renders the schema as
+ * hints.
  *
  * The schema is deliberately *lightweight*:
  *   - Variable paths only, no PHP type inference.
