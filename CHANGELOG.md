@@ -10,6 +10,36 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+Additive: nothing was removed and no public signature changed. The number goes
+up a minor for a new class and a new port, and `dev-develop` is aliased to the
+line it is now on.
+
+### Added: a validator that says what a template reads
+
+**`Validation\DtmplSyntaxValidator` lexes, parses and walks a template into
+the `ContextSchema` this package already owns.** `DtmplEngine::validate()`
+answers whether a template compiles; this answers what it reads: every
+variable, constant, loop and conditional, with loop scope and filters,
+deduplicated. A syntax error surfaces as `TemplateValidationException` with the
+`SyntaxException` chained, so a caller can show line and column. Empty input is
+an empty schema, not an error. The injected `Parser` is shared on purpose:
+`parse()` resets its cursor on entry.
+
+The `@alias` prefix on a variable path is resolved through a new port,
+**`Validation\AliasResolverInterface`** (`resolve()` and `knownAliases()`), and
+the answer is stamped onto the entry as `entityType`. The engine declares the
+question only; a host wires the answer, and `coolms/entity-bundle` does so from
+its entity alias registry. Without a resolver every alias is unknown and the
+refusal says the dictionary is empty. **`Validation\ArrayAliasResolver`** is the
+fixed-map implementation, for tests and for a host with a handful of aliases.
+
+The class and its tests came from the application that had been carrying them
+since the engine was extracted, and it left behind the one thing that did not
+belong here: the alias lookup, which now sits behind the port. The docblock on
+`TemplateValidationException`, which named the class all along, is true.
+
 ## 2.1.0 - 2026-09-10
 
 !! Cut from `develop`, before the branch rule existed. From 2026-09-10 the rule
