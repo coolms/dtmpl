@@ -91,7 +91,19 @@ final class Lexer
         'false' => false,
     ];
 
-    private string $source;
+    /**
+     * The source split into characters ONCE, because the scanner reads by
+     * character offset and `mb_substr($source, $n, 1)` is O(n): it walks the
+     * string from the start to find the nth character. Calling it per
+     * character made the lexer O(n^2), which is invisible on a template and
+     * ruinous on a long one -- the console reference page took 29 SECONDS to
+     * render, and adding 6KB of attributes to it pushed the request past PHP's
+     * 60-second limit into a fatal (measured 2026-09-15).
+     *
+     * @var list<string>
+     */
+    private array $chars = [];
+
     private int $length;
     private int $position = 0;
     private int $line = 1;
@@ -112,8 +124,8 @@ final class Lexer
      */
     public function tokenize(string $source): array
     {
-        $this->source = $source;
-        $this->length = mb_strlen($source, $this->encoding);
+        $this->chars = mb_str_split($source, 1, $this->encoding);
+        $this->length = count($this->chars);
         $this->position = 0;
         $this->line = 1;
         $this->column = 1;
@@ -714,7 +726,7 @@ final class Lexer
             // the source string directly bypasses that inference
             // without marking `peek()` impure platform-wide.
             $nextChar = $this->position < $this->length
-                ? mb_substr($this->source, $this->position, 1, $this->encoding)
+                ? $this->chars[$this->position]
                 : '';
             if ('@' === $nextChar) {
                 throw new SyntaxException('Unexpected `@` -- entity-alias prefix must appear once at the start of an identifier.', $this->line, $this->column);
@@ -896,7 +908,7 @@ final class Lexer
             return '';
         }
 
-        return mb_substr($this->source, $pos, 1, $this->encoding);
+        return $this->chars[$pos];
     }
 
     /**
@@ -908,7 +920,7 @@ final class Lexer
             return '';
         }
 
-        $char = mb_substr($this->source, $this->position, 1, $this->encoding);
+        $char = $this->chars[$this->position];
         ++$this->position;
 
         if ("\n" === $char) {

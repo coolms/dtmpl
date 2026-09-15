@@ -10,6 +10,32 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Fixed: the lexer no longer re-walks the source for every character it reads
+
+`Lexer::peek()` and `Lexer::advance()` called `mb_substr($source, $n, 1)` once
+per character. That call is O(n) -- it counts characters from the start of the
+string to find the nth -- so tokenizing was O(n^2) in the length of the
+template. Short templates hid it completely; long ones did not.
+
+What a caller notices is render time, and only on long templates. Measured on
+the documentation site that surfaced this, a 100KB page:
+
+| | cold render |
+| --- | --- |
+| before | 29.0s |
+| after | 0.56s |
+
+At 6KB larger, the same page crossed PHP's default 60-second limit and died
+with `Maximum execution time exceeded` pointing at the `mb_substr` in `peek()`
+-- so on a long enough template this was a failure, not only a slow path.
+
+The source is now split into characters once and indexed. No public signature
+changed and no behaviour changed: the package's 569 tests and 899 assertions
+pass unaltered. The private `$source` property is gone with the last read of
+it, since a field kept only to be assigned is a wrong turn for the next reader.
+
 ## 2.2.0 - 2026-09-15
 
 The first version on this line cut under the branch rule: `develop` was
