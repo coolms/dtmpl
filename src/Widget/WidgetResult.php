@@ -20,14 +20,14 @@ use function is_array;
  * such a widget is bound with `{def:x=widget:...}`, this wrapper lets the SAME
  * name behave two ways with no ambiguity:
  *
- *   - `{var:x}` (and the inline `{widget:...}` concat path) → **stringifies to the
+ *   - `{var:x}` (and the inline `{widget:...}` concat path) -> **stringifies to the
  *     eagerly-rendered partial HTML** (identical to the previous
  *     {@see \CoolMS\Dtmpl\Runtime\RenderedHtml} behaviour -- fully
  *     backward-compatible).
- *   - `{loop:x:item}` → **iterates the widget's data** -- its `items` list when
+ *   - `{loop:x:item}` -> **iterates the widget's data** -- its `items` list when
  *     the view names one (the {@see WidgetView::$data}`['items']` convention that
  *     the media/gallery view already uses), else the data map itself.
- *   - `{var:x.field}` → **reads `data[field]`** via the Executor's
+ *   - `{var:x.field}` -> **reads `data[field]`** via the Executor's
  *     PropertyAccessor magic-get, so a single-record data-widget exposes its
  *     fields.
  *

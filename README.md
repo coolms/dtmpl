@@ -77,6 +77,8 @@ no `{/keyword}` form.
 | widget | `{widget:comments}` or `{widget:document:my-slug}` |
 | unencoded value | `{var:page.body raw}` |
 | verbatim block | `{verbatim}` ... `{endverbatim}` (not tokenized -- for code samples) |
+| comment | `{comment}` ... `{endcomment}` or `{comment:note}` -- removed by the lexer, never emitted |
+| asset block | `{css}` ... `{endcss}` and `{js}` ... `{endjs}` -- declared beside the markup, gathered before the render, written once into the head |
 
 String literals use **backticks**, so a template never fights HTML quoting.
 

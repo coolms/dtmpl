@@ -153,7 +153,7 @@ class DtmplEngineTest extends TestCase
             '{loop:attrs odd}{var:item.key}:{var:item.value} {endloop}',
             ['attrs' => ['a' => '1', 'b' => '2', 'c' => '3', 'd' => '4']],
         );
-        // Indices 1 and 3 (odd) → keys 'b' and 'd'
+        // Indices 1 and 3 (odd) -> keys 'b' and 'd'
         $this->assertSame('b:2 d:4 ', $result);
     }
 

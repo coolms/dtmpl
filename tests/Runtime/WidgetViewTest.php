@@ -92,7 +92,7 @@ final class WidgetViewTest extends TestCase
         (string) new WidgetView('partials/x.html.dtmpl');
     }
 
-    /** @param array<string, string> $map path → source */
+    /** @param array<string, string> $map path -> source */
     private function loaderWith(array $map): TemplateLoaderInterface
     {
         return new class($map) implements TemplateLoaderInterface {

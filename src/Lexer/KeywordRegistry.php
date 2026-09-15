@@ -11,7 +11,7 @@ namespace CoolMS\Dtmpl\Lexer;
  * Two responsibilities:
  *
  *   1. Single source of truth for "is this identifier a tag-starter?".
- *      The lexer's `KEYWORDS` map (string → TokenType) needs the
+ *      The lexer's `KEYWORDS` map (string -> TokenType) needs the
  *      identifier-to-type binding; this registry only needs the
  *      identifier set, so it stays a flat `list<string>` and is kept
  *      alphabetically for human reviewers.
@@ -33,7 +33,7 @@ final class KeywordRegistry
 {
     /**
      * Tag-introducing keywords. Mirrors the Lexer's internal map; the
-     * Lexer keeps the string → TokenType binding because the parser
+     * Lexer keeps the string -> TokenType binding because the parser
      * needs it, this registry keeps just the names.
      *
      * @var list<string>

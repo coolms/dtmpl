@@ -57,6 +57,13 @@ enum TokenType: string
     case Const = 'CONST';  // const
     case Translate = 'TRANSLATE'; // the {t:} translation directive
 
+    // `{css}`...`{endcss}` and `{js}`...`{endjs}`. Two types rather than one
+    // carrying a kind, because Token is a flat (type, value) pair and adding a
+    // second payload field to it for the benefit of one construct would put
+    // the cost on every token in every template.
+    case AssetCss = 'ASSET_CSS';
+    case AssetJs = 'ASSET_JS';
+
     // Special
     case Eof = 'EOF'; // End of file
 

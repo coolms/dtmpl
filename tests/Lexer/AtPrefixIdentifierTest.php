@@ -20,12 +20,12 @@ use PHPUnit\Framework\TestCase;
  * `EntityAliasRegistry`.
  *
  * Coverage:
- *   • `{var:@user}` -- single identifier with `@` prefix
- *   • `{var:@identity_user.email}` -- `@` lives in the first path segment
- *   • `@` inside backtick strings stays literal (email addresses survive)
- *   • `@` in plain text stays literal (no false-positive tag start)
- *   • `{var:@@foo}` -- explicit error (committed-intent typo)
- *   • `{var:@}` -- bare `@` errors with a helpful message
+ *   - `{var:@user}` -- single identifier with `@` prefix
+ *   - `{var:@identity_user.email}` -- `@` lives in the first path segment
+ *   - `@` inside backtick strings stays literal (email addresses survive)
+ *   - `@` in plain text stays literal (no false-positive tag start)
+ *   - `{var:@@foo}` -- explicit error (committed-intent typo)
+ *   - `{var:@}` -- bare `@` errors with a helpful message
  */
 final class AtPrefixIdentifierTest extends TestCase
 {
