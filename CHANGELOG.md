@@ -43,6 +43,15 @@ changed and no behaviour changed: the package's 569 tests and 899 assertions
 pass unaltered. The private `$source` property is gone with the last read of
 it, since a field kept only to be assigned is a wrong turn for the next reader.
 
+### Security
+
+- `FilesystemTemplateLoader` reads only inside its base path. An existing file
+  is served only when its canonical path (`..` and symlinks resolved) lies
+  inside the canonical base path; an absolute path, a `../` climb or a symlink
+  that lands outside is not found. It used to take an absolute path as-is and
+  join a relative one with no check, so an include in a template somebody wrote
+  could read any file the process could.
+
 ## 2.2.0 - 2026-09-15
 
 The first version on this line cut under the branch rule: `develop` was
