@@ -42,7 +42,8 @@ final readonly class ContextSchema
      * Reconstruct from the persisted `DocumentTemplate.contextSchema`
      * array shape (JSON column round-trip). Tolerant of legacy rows
      * that pre-date the schema extension (the new `entityType` /
-     * `collection` / `fields` keys default to their older values). Returns
+     * `collection` / `fields` / `callerFillable` keys default to their older
+     * values, and a row without `callerFillable` marks nothing). Returns
      * `null` when the input is null/empty so consumers can
      * short-circuit on templates that ship no schema at all.
      *
@@ -77,6 +78,10 @@ final readonly class ContextSchema
                 entityType: $entityType,
                 collection: $collection,
                 fields: $fields,
+                // Only a JSON `true` marks a variable. This mark lets a caller supply the value, so a
+                // `"true"` or a `1` that some writer produced stays unmarked rather than being read as
+                // permission.
+                callerFillable: true === ($v['callerFillable'] ?? false),
             );
         }
 
@@ -84,6 +89,68 @@ final readonly class ContextSchema
         // render-time hydrator -- keep the parser lean. Re-hydration
         // for the validator's purposes goes through its own path.
         return new self(variables: $variables);
+    }
+
+    /**
+     * The paths an author marked as filled by the caller, each once, in the
+     * order they first appear. A host that takes values from a caller accepts
+     * these and refuses every other path.
+     *
+     * @return list<string>
+     */
+    public function callerFillablePaths(): array
+    {
+        $paths = [];
+        foreach ($this->variables as $variable) {
+            if ($variable->callerFillable) {
+                $paths[$variable->path] = true;
+            }
+        }
+
+        return array_keys($paths);
+    }
+
+    /**
+     * This schema, with the author's "filled by the caller" marks carried over
+     * from the schema it replaces.
+     *
+     * A host re-extracts the schema from the template's text after every
+     * content change, and the text never says which variables a caller may
+     * fill: that is the author's mark, kept beside the text. A host that
+     * stored the fresh extraction as it is would unmark every variable at the
+     * template's next edit, and no one would be told. So each variable whose
+     * path the previous schema marked is marked again, every entry of that
+     * path included.
+     *
+     * Two things are not carried:
+     * - A path that no longer exists. Its mark goes with it.
+     * - A path that is now an entity reference (it names an `entityType`). A
+     *   reference is a read of a record, which the host checks for the
+     *   caller's access. It is never a value the caller types in.
+     *
+     * `$previous` is the persisted shape that {@see toArray()} wrote. Anything
+     * else, null included, carries nothing.
+     */
+    public function withCallerFillableCarriedFrom(mixed $previous): self
+    {
+        $before = is_array($previous) ? self::fromArray($previous) : null;
+        $marked = array_flip($before?->callerFillablePaths() ?? []);
+        if ([] === $marked) {
+            return $this;
+        }
+
+        $variables = [];
+        foreach ($this->variables as $variable) {
+            // A reference stays unmarked: the variable itself refuses the mark.
+            $variables[] = isset($marked[$variable->path]) ? $variable->withCallerFillable(true) : $variable;
+        }
+
+        return new self(
+            variables: $variables,
+            constants: $this->constants,
+            loops: $this->loops,
+            conditionals: $this->conditionals,
+        );
     }
 
     /**

@@ -10,6 +10,32 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Added: a variable can be marked as filled by the caller
+
+`ContextSchemaVariable::$callerFillable` is the author's mark that whoever asks
+for a render may supply the variable's value. It is off unless an author
+switches it on. A template's text says what the template reads, never who may
+fill it, so nothing the validator extracts is marked, and a host that takes
+values from a caller can refuse every path not in
+`ContextSchema::callerFillablePaths()`.
+
+The mark is persisted only when it is on (`"callerFillable": true`), and only a
+JSON `true` reads back as one. A `"true"` or a `1` stays unmarked, because this
+mark grants something.
+
+A host re-extracts the schema after every edit of the template's text, and that
+would unmark every variable. `ContextSchema::withCallerFillableCarriedFrom()`
+carries the marks over from the schema being replaced, for each path that still
+exists.
+
+An entity reference (a variable that names an `entityType`) is never marked,
+however it is built: from a stored schema that marks it, constructed marked, or
+marked afterwards. A reference is a read of a record, which the host checks
+against the caller's access, and never a value the caller types in, so a path
+that has become a reference loses its mark across a re-extraction as well.
+
 ## 2.3.0-alpha1 - 2026-10-08
 
 ### Changed: a template reads an object's fields, not its secrets, and does not call its methods
