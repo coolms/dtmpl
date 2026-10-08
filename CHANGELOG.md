@@ -36,6 +36,11 @@ method name without regard to case. Judging the written segment would have left
 every refusal walkable by writing the same name another way -- `re_activate`
 reaching `reactivate()`, `hashed_code` reaching `hashedCode()`.
 
+A method refuses the segment even where a public property of the same name
+shadows it: `PropertyAccessor` tries methods before properties, so on an object
+carrying both, reading the field was never what happened -- the method ran and
+its value came back.
+
 The `filter_by` filter asks the same policy. It reads a field off an object
 itself rather than through a context path, so without that it was an equality
 test against a secret, one guess per render, around both refusals; it also now

@@ -145,6 +145,32 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         self::assertSame([], $filters->apply('filter_by', [$account], ['email', 'someone@example.test']));
     }
 
+    /**
+     * A method SHADOWING a public property of the same name. PropertyAccessor tries methods before properties,
+     * so an object with both would have run the method and returned its value; the field is not what a template
+     * would have got. Refused, and the method does not run.
+     */
+    #[Test]
+    public function aMethodIsRefusedEvenWhereAPublicPropertyShadowsIt(): void
+    {
+        $shadowed = new class {
+            public string $state = 'the field';
+
+            public bool $ran = false;
+
+            public function state(): string
+            {
+                $this->ran = true;
+
+                return 'the method';
+            }
+        };
+
+        self::assertNull(new Context(['x' => $shadowed])->get(['x', 'state']), 'through a context');
+        self::assertNull(new EntityWrapper($shadowed, $this->accessor)->__get('state'), 'through the wrapper');
+        self::assertFalse($shadowed->ran, 'and the method did not run');
+    }
+
     /** The wrapper's own accessor is not a way to the object behind it. */
     #[Test]
     public function theWrapperDoesNotHandOverTheEntity(): void

@@ -80,15 +80,12 @@ final class ObjectReadPolicy
             return true;
         }
 
-        // A bare public method of that name: a call, not a read. A PUBLIC property of the same name is read
-        // instead; a private one of that name does not make the call a read, which is what keeps a wrapper's own
-        // accessor (`entity()` over a private $entity) from handing a template the object behind it. An object
-        // with neither (a magic __get, an ArrayAccess) is left to PropertyAccessor.
-        if (!method_exists($object, $name) && !method_exists($object, $segment)) {
-            return true;
-        }
-
-        return self::hasPublicProperty($object, $name) || self::hasPublicProperty($object, $segment);
+        // A method of that name: a call, not a read, and refused whatever else the object has. A public property
+        // of the same name does NOT make it a read, because PropertyAccessor tries methods first
+        // (ReflectionExtractor::getReadInfo) -- so on an object with both, allowing it would run the method and
+        // return its value, not read the field (measured 2026-10-08). An object with no such method -- a magic
+        // __get, an ArrayAccess, a plain property -- is left to PropertyAccessor.
+        return !method_exists($object, $name) && !method_exists($object, $segment);
     }
 
     /**
