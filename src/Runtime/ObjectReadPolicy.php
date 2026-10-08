@@ -115,6 +115,15 @@ final class ObjectReadPolicy
     }
 
     /**
+     * Whether the object declares this name as a PUBLIC property: what a caller reading a field itself, rather
+     * than through PropertyAccessor, may read. Reading a private one from outside raises an Error.
+     */
+    public static function hasPublicProperty(object $object, string $name): bool
+    {
+        return property_exists($object, $name) && new ReflectionProperty($object, $name)->isPublic();
+    }
+
+    /**
      * A segment as PropertyAccessor spells it when it looks for a method: `hashed_code` and `hashed-code` both
      * become `hashedCode`. A segment already in that form is unchanged.
      */
@@ -123,15 +132,6 @@ final class ObjectReadPolicy
         $spaced = str_replace(['-', ' ', '.'], '_', $segment);
 
         return lcfirst(str_replace('_', '', ucwords($spaced, '_')));
-    }
-
-    /**
-     * Whether the object declares this name as a PUBLIC property: what a caller reading a field itself, rather
-     * than through PropertyAccessor, may read. Reading a private one from outside raises an Error.
-     */
-    public static function hasPublicProperty(object $object, string $name): bool
-    {
-        return property_exists($object, $name) && new ReflectionProperty($object, $name)->isPublic();
     }
 
     /**
