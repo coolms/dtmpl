@@ -501,11 +501,18 @@ final class FilterRegistry
                     return ($item[$key] ?? null) === $expected;
                 }
                 if (is_object($item)) {
+                    // This filter reads a field itself rather than through a context path, so it asks the same
+                    // policy: without it, `filter_by:`password`,`a-guess`` is an equality test against a secret,
+                    // one guess per render, around every refusal in Context and EntityWrapper. A PUBLIC property
+                    // only, too -- `property_exists()` is true of a private one, and reading it from here raises.
+                    if (!ObjectReadPolicy::mayRead($item, (string) $key)) {
+                        return false;
+                    }
                     $getter = 'get' . ucfirst((string) $key);
                     if (method_exists($item, $getter)) {
                         return $item->$getter() === $expected;
                     }
-                    if (property_exists($item, $key)) {
+                    if (ObjectReadPolicy::hasPublicProperty($item, (string) $key)) {
                         return $item->$key === $expected;
                     }
                 }
