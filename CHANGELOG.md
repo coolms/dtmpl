@@ -12,6 +12,38 @@ same commit as the change it describes.
 
 ## Unreleased
 
+### Changed: a template reads an object's fields, not its secrets, and does not call its methods
+
+A path segment that reaches an object was handed to `PropertyAccessor`, which
+reads a public property, a `get`/`is`/`has`/`can` getter, a magic `__get` or an
+`ArrayAccess` index -- and also CALLS a public method whose name is the segment
+itself. Two things followed from that, and both are now refused.
+
+- A field whose name says it holds a secret -- a password, a token, a
+  credential, a recovery code, a secret of any kind -- is refused, and the name
+  is judged after the getter prefix is stripped. `password` and `getPassword`
+  are therefore the same refusal: making the property private and keeping a
+  getter for the framework that needs it does not reopen the field to a
+  template.
+- A segment that is a bare method call rather than a property or a getter is
+  refused outright. Such a method may change state -- an entity's
+  `reactivate()`, `uninstall()`, `hide()`, `end()` -- and a template is read, so
+  a reader of one should not have to know which of its paths act.
+
+A refusal reads as a miss: the segment resolves to null, exactly as an absent
+property already does, so a template cannot learn from the answer whether the
+field is there. Arrays are untouched -- an array holds what a renderer put in
+it, and holds no methods. The rule is one class, `Runtime\ObjectReadPolicy`, and
+it is asked in both places an object is read: `Runtime\Context` for an object a
+renderer put in a context, and `Runtime\EntityWrapper` for one handed to a
+widget's caller. Neither depends on the other being the only way in.
+
+A template that used such a field or called such a method renders an empty
+value where it used to render one. The names are matched, not the values,
+because a template engine cannot know an application's entities; an application
+that holds a secret in a field whose name does not say so marks it, and the
+layer that can see the marker refuses it as well.
+
 ### Added
 
 - Declares `support` -- `issues` and `source` -- so a page imported from this
