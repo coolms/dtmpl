@@ -6,6 +6,7 @@ namespace CoolMS\Dtmpl\Tests\Runtime;
 
 use CoolMS\Dtmpl\Runtime\Context;
 use CoolMS\Dtmpl\Runtime\EntityWrapper;
+use CoolMS\Dtmpl\Runtime\FilterRegistry;
 use CoolMS\Dtmpl\Runtime\ObjectReadPolicy;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -58,6 +59,13 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         yield 'a token hash' => ['tokenHash'];
         yield 'credentials' => ['sipCredentials'];
         yield 'a recovery code' => ['recoveryCodes'];
+        yield 'a one-time code digest' => ['hashedCode'];
+        yield 'the same digest, the other way round, in a public field' => ['cancelCodeHash'];
+        yield 'that public field written snake_case' => ['cancel_code_hash'];
+        yield 'written snake_case' => ['hashed_code'];
+        yield 'the getter, snake_case' => ['get_password'];
+        yield 'the getter, kebab-case' => ['get-password'];
+        yield 'capitalised' => ['Password'];
     }
 
     /**
@@ -90,6 +98,53 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         self::assertFalse($account->reactivated, 'and the method did not run');
     }
 
+    /**
+     * The same method, spelt the ways PropertyAccessor would still find it: it camelizes a segment before it
+     * looks for a method, and PHP matches a method name without regard to case. Measured 2026-10-08: at the
+     * first revision of this policy `re_activate` RAN reactivate().
+     */
+    #[Test]
+    #[DataProvider('theWaysAMethodIsAskedFor')]
+    public function aMethodIsNotCalledBySpellingItAnotherWay(string $segment): void
+    {
+        $account = self::anAccount();
+
+        self::assertNull(new Context(['u' => $account])->get(['u', $segment]), $segment . ' must read as absent');
+        self::assertFalse($account->reactivated, $segment . ' must not have run the method');
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function theWaysAMethodIsAskedFor(): iterable
+    {
+        yield 'as written' => ['reactivate'];
+        yield 'snake_case' => ['re_activate'];
+        yield 'kebab-case' => ['re-activate'];
+        yield 'capitalised' => ['Reactivate'];
+    }
+
+    /**
+     * A filter that reads a field off an object itself asks the same policy. Without it,
+     * `filter_by:`password`,`a-guess`` is an equality test against a secret -- one guess per render -- around
+     * every refusal above.
+     */
+    #[Test]
+    public function aFilterCannotCompareAgainstASecret(): void
+    {
+        $account = self::anAccount();
+        $filters = new FilterRegistry();
+
+        $bySecret = $filters->apply('filter_by', [$account], ['password', 'not-a-real-hash']);
+        self::assertSame([], $bySecret, 'the account must not be matched on its secret, even by the right value');
+        $byGetter = $filters->apply('filter_by', [$account], ['getPassword', 'not-a-real-hash']);
+        self::assertSame([], $byGetter, 'nor on the getter spelt out');
+        $bySnake = $filters->apply('filter_by', [$account], ['hashed_code', 'a-code-digest']);
+        self::assertSame([], $bySnake, 'nor by another spelling');
+
+        // The control: the same filter, the same object, an ordinary field -- it still selects.
+        self::assertSame([$account], $filters->apply('filter_by', [$account], ['email', 'alice@example.test']));
+        self::assertSame([], $filters->apply('filter_by', [$account], ['email', 'someone@example.test']));
+    }
+
     /** The wrapper's own accessor is not a way to the object behind it. */
     #[Test]
     public function theWrapperDoesNotHandOverTheEntity(): void
@@ -111,6 +166,11 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         self::assertSame('candidate', ObjectReadPolicy::fieldName('candidate'), 'can + lower case likewise');
         self::assertTrue(ObjectReadPolicy::isSecret('getPassword'));
         self::assertFalse(ObjectReadPolicy::isSecret('contentHash'), 'a hash of content is not a secret');
+        // Asked directly, in any spelling: a caller of its own passes the name as it is written, so the
+        // separators come off here too rather than only in mayRead()'s camelized name.
+        self::assertTrue(ObjectReadPolicy::isSecret('cancel_code_hash'), 'a part spanning the separators is found');
+        self::assertTrue(ObjectReadPolicy::isSecret('hashed-code'));
+        self::assertTrue(ObjectReadPolicy::isSecret('get_password'));
     }
 
     private static function anAccount(): object
@@ -151,6 +211,14 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
             {
                 return ['not-a-real-code'];
             }
+
+            public function hashedCode(): string
+            {
+                return 'a-code-digest';
+            }
+
+            /** A secret in a PUBLIC field, as one of the application's is before it is made private. */
+            public string $cancelCodeHash = 'not-a-real-digest';
 
             public function getFullName(): string
             {

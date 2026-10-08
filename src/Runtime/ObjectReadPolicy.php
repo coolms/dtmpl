@@ -10,11 +10,14 @@ use function implode;
 use function lcfirst;
 use function method_exists;
 use function preg_match;
+use function preg_replace;
 use function property_exists;
 use function str_contains;
+use function str_replace;
 use function strlen;
 use function strtolower;
 use function substr;
+use function ucwords;
 
 /**
  * What a template may read from an OBJECT in its context.
@@ -54,6 +57,8 @@ final class ObjectReadPolicy
         'credential',
         'recoverycode',
         'onetimecode',
+        'codehash',
+        'hashedcode',
     ];
 
     /** The prefixes PropertyAccessor reads a field through; each counts only before an upper-case letter. */
@@ -62,10 +67,15 @@ final class ObjectReadPolicy
     /** Whether a template may read this segment from this object. */
     public static function mayRead(object $object, string $segment): bool
     {
-        if (self::isSecret($segment)) {
+        // The name PropertyAccessor will go looking for, not the one written: it camelizes a segment before it
+        // tries a method, and PHP matches a method name without regard to case. So `re_activate` finds
+        // `reactivate()` and `hashed_code` finds `hashedCode()`, and judging the written segment would let every
+        // refusal here be walked around by writing the same name another way (measured 2026-10-08).
+        $name = self::camelize($segment);
+        if (self::isSecret($name)) {
             return false;
         }
-        if (null !== self::getterPrefix($segment)) {
+        if (null !== self::getterPrefix($name)) {
             // The segment IS a getter call, which reads; its field name was judged above.
             return true;
         }
@@ -74,13 +84,21 @@ final class ObjectReadPolicy
         // instead; a private one of that name does not make the call a read, which is what keeps a wrapper's own
         // accessor (`entity()` over a private $entity) from handing a template the object behind it. An object
         // with neither (a magic __get, an ArrayAccess) is left to PropertyAccessor.
-        return !method_exists($object, $segment) || self::hasPublicProperty($object, $segment);
+        if (!method_exists($object, $name) && !method_exists($object, $segment)) {
+            return true;
+        }
+
+        return self::hasPublicProperty($object, $name) || self::hasPublicProperty($object, $segment);
     }
 
-    /** Whether a field of this name holds a secret, judged after the getter prefix is stripped. */
+    /**
+     * Whether a field of this name holds a secret. The name is camelized, the getter prefix stripped and every
+     * separator dropped before the parts are looked for, so `hashed_code`, `hashedCode` and `getHashedCode` are
+     * one answer and no spelling of a name is a way past the list.
+     */
     public static function isSecret(string $segment): bool
     {
-        $name = strtolower(self::fieldName($segment));
+        $name = strtolower((string) preg_replace('/[^A-Za-z0-9]/', '', self::fieldName(self::camelize($segment))));
 
         foreach (self::SECRET_PARTS as $part) {
             if (str_contains($name, $part)) {
@@ -99,7 +117,22 @@ final class ObjectReadPolicy
         return null === $prefix ? $segment : lcfirst(substr($segment, strlen($prefix)));
     }
 
-    private static function hasPublicProperty(object $object, string $name): bool
+    /**
+     * A segment as PropertyAccessor spells it when it looks for a method: `hashed_code` and `hashed-code` both
+     * become `hashedCode`. A segment already in that form is unchanged.
+     */
+    private static function camelize(string $segment): string
+    {
+        $spaced = str_replace(['-', ' ', '.'], '_', $segment);
+
+        return lcfirst(str_replace('_', '', ucwords($spaced, '_')));
+    }
+
+    /**
+     * Whether the object declares this name as a PUBLIC property: what a caller reading a field itself, rather
+     * than through PropertyAccessor, may read. Reading a private one from outside raises an Error.
+     */
+    public static function hasPublicProperty(object $object, string $name): bool
     {
         return property_exists($object, $name) && new ReflectionProperty($object, $name)->isPublic();
     }

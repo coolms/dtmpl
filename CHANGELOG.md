@@ -30,6 +30,18 @@ itself. Two things followed from that, and both are now refused.
   `reactivate()`, `uninstall()`, `hide()`, `end()` -- and a template is read, so
   a reader of one should not have to know which of its paths act.
 
+Both refusals judge the name `PropertyAccessor` will go looking for, not the one
+written: it camelizes a segment before it tries a method, and PHP matches a
+method name without regard to case. Judging the written segment would have left
+every refusal walkable by writing the same name another way -- `re_activate`
+reaching `reactivate()`, `hashed_code` reaching `hashedCode()`.
+
+The `filter_by` filter asks the same policy. It reads a field off an object
+itself rather than through a context path, so without that it was an equality
+test against a secret, one guess per render, around both refusals; it also now
+reads a public property only, where before a private one of the same name
+raised.
+
 A refusal reads as a miss: the segment resolves to null, exactly as an absent
 property already does, so a template cannot learn from the answer whether the
 field is there. Arrays are untouched -- an array holds what a renderer put in
