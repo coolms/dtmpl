@@ -10,7 +10,7 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.3.0-alpha1 - 2026-10-08
 
 ### Changed: a template reads an object's fields, not its secrets, and does not call its methods
 
@@ -60,6 +60,11 @@ value where it used to render one. The names are matched, not the values,
 because a template engine cannot know an application's entities; an application
 that holds a secret in a field whose name does not say so marks it, and the
 layer that can see the marker refuses it as well.
+
+Taking away a read that used to work is a removal, which `CONTRIBUTING.md`
+counts as a break: ordinarily it would arrive as a deprecation and wait for a
+planned major. It ships in this minor, with no deprecation first, because it is
+a security fix.
 
 ### Added
 
