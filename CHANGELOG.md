@@ -28,9 +28,13 @@ mark grants something.
 A host re-extracts the schema after every edit of the template's text, and that
 would unmark every variable. `ContextSchema::withCallerFillableCarriedFrom()`
 carries the marks over from the schema being replaced, for each path that still
-exists. A path that has become an entity reference loses its mark: a reference
-is a read of a record, which the host checks against the caller's access, and
-never a value the caller types in.
+exists.
+
+An entity reference (a variable that names an `entityType`) is never marked,
+however it is built: from a stored schema that marks it, constructed marked, or
+marked afterwards. A reference is a read of a record, which the host checks
+against the caller's access, and never a value the caller types in, so a path
+that has become a reference loses its mark across a re-extraction as well.
 
 ## 2.3.0-alpha1 - 2026-10-08
 

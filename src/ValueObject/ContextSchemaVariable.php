@@ -34,10 +34,21 @@ namespace CoolMS\Dtmpl\ValueObject;
  * that takes values from a caller refuses every variable not marked.
  * The mark belongs to the path, so a host marks every entry of a path
  * together, and {@see ContextSchema::withCallerFillableCarriedFrom()}
- * keeps it across a re-extraction.
+ * keeps it across a re-extraction. Two loops that reuse an alias give
+ * their items the same paths, and so share a mark: the caller fills a
+ * path, whichever loop reads it.
+ *
+ * An entity reference (one that names an `entityType`) is never
+ * caller-filled, however it is built: from a stored schema, by a host,
+ * or by hand. A reference is a read of a record, which the host checks
+ * against the caller's access, and never a value the caller types in.
+ * So the mark is dropped here, in the one place every variable is
+ * built, and no reader has to remember to drop it.
  */
 final readonly class ContextSchemaVariable
 {
+    public bool $callerFillable;
+
     /**
      * @param list<string>      $filters
      * @param list<string>|null $fields
@@ -49,8 +60,9 @@ final readonly class ContextSchemaVariable
         public ?string $entityType = null,
         public bool $collection = false,
         public ?array $fields = null,
-        public bool $callerFillable = false,
+        bool $callerFillable = false,
     ) {
+        $this->callerFillable = $callerFillable && null === $entityType;
     }
 
     public function withCallerFillable(bool $callerFillable): self

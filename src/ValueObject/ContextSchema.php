@@ -141,8 +141,8 @@ final readonly class ContextSchema
 
         $variables = [];
         foreach ($this->variables as $variable) {
-            $carried = null === $variable->entityType && isset($marked[$variable->path]);
-            $variables[] = $carried ? $variable->withCallerFillable(true) : $variable;
+            // A reference stays unmarked: the variable itself refuses the mark.
+            $variables[] = isset($marked[$variable->path]) ? $variable->withCallerFillable(true) : $variable;
         }
 
         return new self(

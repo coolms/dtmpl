@@ -102,6 +102,26 @@ final class AVariableIsFilledByTheCallerOnlyWhenMarkedTest extends TestCase
         self::assertSame([], $fresh->withCallerFillableCarriedFrom($before)->callerFillablePaths());
     }
 
+    /**
+     * However a reference is built -- read from a stored schema that marks it, constructed marked, or marked after --
+     * it is never caller-filled, and the persisted shape never says it is.
+     */
+    #[Test]
+    public function aReferenceIsNeverCallerFilledHoweverItIsBuilt(): void
+    {
+        $stored = ContextSchema::fromArray(['variables' => [
+            ['path' => 'recipient', 'entityType' => 'Acme\\Shop\\Customer', 'callerFillable' => true],
+            ['path' => 'letter.greeting', 'callerFillable' => true],
+        ]]);
+        self::assertNotNull($stored);
+        self::assertSame(['letter.greeting'], $stored->callerFillablePaths());
+
+        $built = new ContextSchemaVariable('recipient', entityType: 'Acme\\Shop\\Customer', callerFillable: true);
+        self::assertFalse($built->callerFillable);
+        self::assertFalse($built->withCallerFillable(true)->callerFillable);
+        self::assertArrayNotHasKey('callerFillable', $built->withCallerFillable(true)->toArray());
+    }
+
     #[Test]
     public function aPreviousSchemaWithoutMarksOrWithoutAShapeCarriesNothing(): void
     {
