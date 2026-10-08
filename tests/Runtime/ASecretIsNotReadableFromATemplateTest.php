@@ -24,9 +24,31 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
 {
     private PropertyAccessorInterface $accessor;
 
-    protected function setUp(): void
+    /** @return iterable<string, array{string}> */
+    public static function theWaysASecretIsAskedFor(): iterable
     {
-        $this->accessor = PropertyAccess::createPropertyAccessor();
+        yield 'the property itself' => ['password'];
+        yield 'its getter, written out' => ['getPassword'];
+        yield 'a secret whose name is not "password"' => ['sealedSecret'];
+        yield 'a token hash' => ['tokenHash'];
+        yield 'credentials' => ['sipCredentials'];
+        yield 'a recovery code' => ['recoveryCodes'];
+        yield 'a one-time code digest' => ['hashedCode'];
+        yield 'the same digest, the other way round, in a public field' => ['cancelCodeHash'];
+        yield 'that public field written snake_case' => ['cancel_code_hash'];
+        yield 'written snake_case' => ['hashed_code'];
+        yield 'the getter, snake_case' => ['get_password'];
+        yield 'the getter, kebab-case' => ['get-password'];
+        yield 'capitalised' => ['Password'];
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function theWaysAMethodIsAskedFor(): iterable
+    {
+        yield 'as written' => ['reactivate'];
+        yield 'snake_case' => ['re_activate'];
+        yield 'kebab-case' => ['re-activate'];
+        yield 'capitalised' => ['Reactivate'];
     }
 
     /** Every way the same secret can be asked for, through a raw object in a context. */
@@ -48,24 +70,6 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
 
         self::assertNull($wrapper->__get($segment), $segment . ' must read as an absent field');
         self::assertFalse(isset($wrapper->$segment), $segment . ' must not even be set');
-    }
-
-    /** @return iterable<string, array{string}> */
-    public static function theWaysASecretIsAskedFor(): iterable
-    {
-        yield 'the property itself' => ['password'];
-        yield 'its getter, written out' => ['getPassword'];
-        yield 'a secret whose name is not "password"' => ['sealedSecret'];
-        yield 'a token hash' => ['tokenHash'];
-        yield 'credentials' => ['sipCredentials'];
-        yield 'a recovery code' => ['recoveryCodes'];
-        yield 'a one-time code digest' => ['hashedCode'];
-        yield 'the same digest, the other way round, in a public field' => ['cancelCodeHash'];
-        yield 'that public field written snake_case' => ['cancel_code_hash'];
-        yield 'written snake_case' => ['hashed_code'];
-        yield 'the getter, snake_case' => ['get_password'];
-        yield 'the getter, kebab-case' => ['get-password'];
-        yield 'capitalised' => ['Password'];
     }
 
     /**
@@ -113,15 +117,6 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         self::assertFalse($account->reactivated, $segment . ' must not have run the method');
     }
 
-    /** @return iterable<string, array{string}> */
-    public static function theWaysAMethodIsAskedFor(): iterable
-    {
-        yield 'as written' => ['reactivate'];
-        yield 'snake_case' => ['re_activate'];
-        yield 'kebab-case' => ['re-activate'];
-        yield 'capitalised' => ['Reactivate'];
-    }
-
     /**
      * A filter that reads a field off an object itself asks the same policy. Without it,
      * `filter_by:`password`,`a-guess`` is an equality test against a secret -- one guess per render -- around
@@ -155,7 +150,6 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
     {
         $shadowed = new class {
             public string $state = 'the field';
-
             public bool $ran = false;
 
             public function state(): string
@@ -199,18 +193,21 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         self::assertTrue(ObjectReadPolicy::isSecret('get_password'));
     }
 
+    protected function setUp(): void
+    {
+        $this->accessor = PropertyAccess::createPropertyAccessor();
+    }
+
     private static function anAccount(): object
     {
         return new class {
             public bool $reactivated = false;
-
             public string $email = 'alice@example.test';
 
             /** A field whose name begins with "is" but is not a getter. */
             public string $issuer = 'a bank';
 
             private string $password = 'not-a-real-hash';
-
             private string $theSecret = 'not-a-real-secret';
 
             public function getPassword(): string
