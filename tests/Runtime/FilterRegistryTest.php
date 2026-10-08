@@ -268,7 +268,6 @@ final class FilterRegistryTest extends TestCase
         $out = $this->registry->apply('href', 'https://x.test/?a=1&b=2');
 
         self::assertSame('https://x.test/?a=1&b=2', $out);
-        self::assertIsString($out);
     }
 
     protected function setUp(): void
