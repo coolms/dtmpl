@@ -8,6 +8,7 @@ use CoolMS\Dtmpl\Runtime\Context;
 use CoolMS\Dtmpl\Runtime\EntityWrapper;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
 use CoolMS\Dtmpl\Runtime\ObjectReadPolicy;
+use CoolMS\Dtmpl\Tests\Runtime\Fixture\AnAccountLikeEntity;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -198,65 +199,8 @@ final class ASecretIsNotReadableFromATemplateTest extends TestCase
         $this->accessor = PropertyAccess::createPropertyAccessor();
     }
 
-    private static function anAccount(): object
+    private static function anAccount(): AnAccountLikeEntity
     {
-        return new class {
-            public bool $reactivated = false;
-            public string $email = 'alice@example.test';
-
-            /** A field whose name begins with "is" but is not a getter. */
-            public string $issuer = 'a bank';
-
-            private string $password = 'not-a-real-hash';
-            private string $theSecret = 'not-a-real-secret';
-
-            public function getPassword(): string
-            {
-                return $this->password;
-            }
-
-            public function sealedSecret(): string
-            {
-                return $this->theSecret;
-            }
-
-            public function getTokenHash(): string
-            {
-                return 'not-a-real-token-hash';
-            }
-
-            public function getSipCredentials(): string
-            {
-                return 'not-real-credentials';
-            }
-
-            public function getRecoveryCodes(): array
-            {
-                return ['not-a-real-code'];
-            }
-
-            public function hashedCode(): string
-            {
-                return 'a-code-digest';
-            }
-
-            /** A secret in a PUBLIC field, as one of the application's is before it is made private. */
-            public string $cancelCodeHash = 'not-a-real-digest';
-
-            public function getFullName(): string
-            {
-                return 'Alice';
-            }
-
-            public function isActive(): bool
-            {
-                return true;
-            }
-
-            public function reactivate(): void
-            {
-                $this->reactivated = true;
-            }
-        };
+        return new AnAccountLikeEntity();
     }
 }
