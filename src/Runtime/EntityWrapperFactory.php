@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CoolMS\Dtmpl\Runtime;
 
+use Closure;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
 /**
@@ -18,8 +19,18 @@ final readonly class EntityWrapperFactory
     ) {
     }
 
-    public function wrap(object $entity): EntityWrapper
+    /**
+     * The entity, wrapped. With a read guard, the wrapper reads only the fields it allows, and every object a read
+     * hands out is asked of it too ({@see EntityWrapper::guarded()}); null when it refuses the entity itself.
+     *
+     * @param (Closure(object): ?list<string>)|null $fieldsFor
+     *
+     * @return ($fieldsFor is null ? EntityWrapper : EntityWrapper|null)
+     */
+    public function wrap(object $entity, ?Closure $fieldsFor = null): ?EntityWrapper
     {
-        return new EntityWrapper($entity, $this->accessor);
+        return null === $fieldsFor
+            ? new EntityWrapper($entity, $this->accessor)
+            : EntityWrapper::guarded($entity, $this->accessor, $fieldsFor);
     }
 }

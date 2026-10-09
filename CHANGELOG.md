@@ -12,6 +12,38 @@ same commit as the change it describes.
 
 ## Unreleased
 
+### Added: a wrapper can read only what a read guard allows
+
+`EntityWrapperFactory::wrap(object $entity, ?Closure $fieldsFor = null)` takes
+an optional read guard, `$fieldsFor(object): ?list<string>`: the fields a
+template may read of a record, or null when it may read none of it. With one:
+
+- `wrap()` answers null when the guard refuses the record itself, so a refused
+  record reads as an absent one;
+- the wrapper reads only the allowed fields, under any spelling of their name
+  (`first_name`, `firstName`, `getFirstName`); any other field reads as absent;
+- it hands out no object of its own. A related record, or one in an array or a
+  collection, is asked of the same guard and comes back wrapped, or absent when
+  the guard refuses it -- left out of a collection -- so a template's next step
+  on it is limited too, however deep the path. Dates, enums and Symfony uids
+  are values and come back as they are;
+- it prints as the empty string: an entity's string form is not one of its
+  fields.
+
+Without a guard, `wrap()` and the wrapper behave as before.
+`EntityWrapper::guarded()` builds the same thing directly, and
+`ObjectReadPolicy::namesReadBy()` names the fields a path segment may read.
+
+### Changed: printing a value and the `json` filter never dump an object
+
+`Output::stringify()` and the `json` filter take arrays and scalars only. An
+object becomes its date text, its enum value (or its name), its string form, or
+nothing -- never a JSON dump of its public properties, which read around every
+limit on what a template may read of it. In an array, such an object becomes
+null. A template that printed an object without a string form, or passed one
+to `json`, now gets the empty string or null there; read the fields it needs
+instead. `Output::plain()` is the conversion both use.
+
 ### Added: a variable can be marked as filled by the caller
 
 `ContextSchemaVariable::$callerFillable` is the author's mark that whoever asks

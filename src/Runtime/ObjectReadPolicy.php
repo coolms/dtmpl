@@ -115,6 +115,21 @@ final class ObjectReadPolicy
     }
 
     /**
+     * The names a segment may be reading, as PropertyAccessor spells them: the camelized segment and, when it is a
+     * getter, the field it gets. `first_name`, `firstName` and `getFirstName` all name `firstName`; `isActive` names
+     * both `isActive` and `active`, since a boolean field may be declared under either.
+     *
+     * @return list<string>
+     */
+    public static function namesReadBy(string $segment): array
+    {
+        $camelized = self::camelize($segment);
+        $field = self::fieldName($camelized);
+
+        return $field === $camelized ? [$camelized] : [$camelized, $field];
+    }
+
+    /**
      * Whether the object declares this name as a PUBLIC property: what a caller reading a field itself, rather
      * than through PropertyAccessor, may read. Reading a private one from outside raises an Error.
      */
