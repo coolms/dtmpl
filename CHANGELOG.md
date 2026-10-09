@@ -10,7 +10,7 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.3.0-alpha2 - 2026-10-09
 
 ### Added: a wrapper can read only what a read guard allows
 
@@ -44,6 +44,12 @@ null. A template that printed an object without a string form, or passed one
 to `json`, now gets the empty string or null there; read the fields it needs
 instead. `Output::plain()` is the conversion both use.
 
+Taking away output that used to print is a removal, which `CONTRIBUTING.md`
+counts as a break: ordinarily it would arrive as a deprecation and wait for a
+planned major. It ships in this minor, with no deprecation first, because it is
+a security fix: the dump read around the limits that 2.3.0-alpha1 and the read
+guard above put on a template.
+
 ### Added: a variable can be marked as filled by the caller
 
 `ContextSchemaVariable::$callerFillable` is the author's mark that whoever asks
@@ -67,6 +73,12 @@ however it is built: from a stored schema that marks it, constructed marked, or
 marked afterwards. A reference is a read of a record, which the host checks
 against the caller's access, and never a value the caller types in, so a path
 that has become a reference loses its mark across a re-extraction as well.
+
+### Fixed: `develop` is aliased as 2.3.x-dev
+
+The branch alias in `composer.json` still named `develop` 2.2.x-dev after
+2.3.0-alpha1. It now reads 2.3.x-dev, so a project that requires `2.3.x-dev`
+gets `develop`, and one that requires `2.2.x-dev` no longer does.
 
 ## 2.3.0-alpha1 - 2026-10-08
 
