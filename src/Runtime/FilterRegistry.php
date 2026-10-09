@@ -317,7 +317,8 @@ final class FilterRegistry
         });
 
         // Format filters
-        $this->register('json', fn ($v) => json_encode($v, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        // Arrays and scalars only: an object becomes what Output::plain() makes of it, never its properties.
+        $this->register('json', fn ($v) => json_encode(Output::plain($v), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         // URL filters
         $this->register('url_encode', fn ($v) => urlencode((string) $v));
