@@ -120,6 +120,13 @@ final class FilterRegistry
                 throw new SecurityException("PHP function '$funcName' is not allowed");
             }
 
+            // json_encode reads an object's public properties and calls its jsonSerialize(): it is handed what printing
+            // is handed -- scalars, arrays of them, a date or an enum as text, a Stringable as its string, any other
+            // object as null -- as the json filter is ({@see Output::plain()}).
+            if ('json_encode' === $funcName) {
+                $value = Output::plain($value);
+            }
+
             // Call PHP function
             /** @var callable-string $callableFn */
             $callableFn = $funcName;
