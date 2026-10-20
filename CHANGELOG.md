@@ -10,6 +10,19 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Added: `{content}`, where a frame draws the page
+
+`{content}` includes the template the host names under the render-data key
+`__content` (`ContentNode::CONTEXT_KEY`), exactly as `{include:}` would. A
+frame (the chrome around a page) can then draw any kind of page without
+knowing which kind it is. With no template named it throws rather than
+rendering an empty middle; it takes no argument. `DtmplEngine::gatherAssets()`
+takes an optional third argument, the content template, so its `{css}` /
+`{js}` declarations are gathered with the frame's. `content` is a new tag
+keyword only at the start of a tag: `{var:content.body}` is unchanged.
+
 ## 2.3.0-alpha2 - 2026-10-09
 
 ### Added: a wrapper can read only what a read guard allows

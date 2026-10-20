@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CoolMS\Dtmpl\Runtime;
 
 use CoolMS\Dtmpl\AST\AssetNode;
+use CoolMS\Dtmpl\AST\ContentNode;
 use CoolMS\Dtmpl\AST\IncludeNode;
 use CoolMS\Dtmpl\AST\Node;
 use CoolMS\Dtmpl\AST\TemplateNode;
@@ -51,14 +52,19 @@ final class AssetGatherer
     ) {
     }
 
-    public function gather(TemplateNode $root, string $rootPath = ''): CollectedAssets
+    /**
+     * `$contentTemplate`: the template a `{content}` in this tree will include (the host's choice for the page),
+     * walked wherever the walk meets `{content}`. Without it a `{content}` contributes nothing -- its template is
+     * not knowable from the sources alone.
+     */
+    public function gather(TemplateNode $root, string $rootPath = '', ?string $contentTemplate = null): CollectedAssets
     {
         /** @var array<string, array{\CoolMS\Dtmpl\AST\AssetKind, string}> $fragments */
         $fragments = [];
         /** @var array<string, true> $visited */
         $visited = [];
 
-        $this->walk($root, $rootPath, $fragments, $visited, 0);
+        $this->walk($root, $rootPath, $fragments, $visited, 0, $contentTemplate);
 
         return CollectedAssets::fromFragments($fragments);
     }
@@ -67,7 +73,7 @@ final class AssetGatherer
      * @param array<string, array{\CoolMS\Dtmpl\AST\AssetKind, string}> $fragments
      * @param array<string, true>                                       $visited
      */
-    private function walk(TemplateNode $template, string $path, array &$fragments, array &$visited, int $depth): void
+    private function walk(TemplateNode $template, string $path, array &$fragments, array &$visited, int $depth, ?string $content): void
     {
         foreach ($template->assets as $asset) {
             // First declaration wins its position; a later identical one is
@@ -80,7 +86,7 @@ final class AssetGatherer
             return;
         }
 
-        foreach ($this->includesIn($template->children) as $include) {
+        foreach ($this->includesIn($template->children, $content) as $include) {
             $resolved = $this->loader->resolve($include->templatePath, $path);
             if (isset($visited[$resolved])) {
                 continue;
@@ -99,7 +105,7 @@ final class AssetGatherer
                 continue;
             }
 
-            $this->walk($this->compiler->compile($source), $resolved, $fragments, $visited, $depth + 1);
+            $this->walk($this->compiler->compile($source), $resolved, $fragments, $visited, $depth + 1, $content);
         }
     }
 
@@ -122,9 +128,11 @@ final class AssetGatherer
      *
      * @param mixed[] $nodes
      *
+     * A {@see ContentNode} counts as an include of `$content` when the host named one
+     *
      * @return list<IncludeNode>
      */
-    private function includesIn(array $nodes): array
+    private function includesIn(array $nodes, ?string $content = null): array
     {
         $found = [];
         foreach ($nodes as $node) {
@@ -134,14 +142,17 @@ final class AssetGatherer
             if ($node instanceof IncludeNode) {
                 $found[] = $node;
             }
+            if ($node instanceof ContentNode && null !== $content && '' !== $content) {
+                $found[] = new IncludeNode($content, [], [], $node->line, $node->column);
+            }
             if ($node instanceof AssetNode) {
                 continue;
             }
             foreach (get_object_vars($node) as $value) {
                 if ($value instanceof Node) {
-                    $found = [...$found, ...$this->includesIn([$value])];
+                    $found = [...$found, ...$this->includesIn([$value], $content)];
                 } elseif (is_array($value)) {
-                    $found = [...$found, ...$this->includesIn($value)];
+                    $found = [...$found, ...$this->includesIn($value, $content)];
                 }
             }
         }

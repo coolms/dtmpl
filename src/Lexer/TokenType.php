@@ -56,6 +56,7 @@ enum TokenType: string
     case Widget = 'WIDGET'; // widget
     case Const = 'CONST';  // const
     case Translate = 'TRANSLATE'; // the {t:} translation directive
+    case Content = 'CONTENT'; // {content}: the page's content, drawn by the template the host names
 
     // `{css}`...`{endcss}` and `{js}`...`{endjs}`. Two types rather than one
     // carrying a kind, because Token is a flat (type, value) pair and adding a
@@ -81,7 +82,8 @@ enum TokenType: string
             self::Fill, self::EndFill,
             self::Widget,
             self::Const,
-            self::Translate => true,
+            self::Translate,
+            self::Content => true,
             default => false,
         };
     }

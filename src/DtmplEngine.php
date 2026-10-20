@@ -164,18 +164,20 @@ final class DtmplEngine implements TemplateCompilerInterface
      * Requires a loader (bound via {@see withLoader()}) to follow includes;
      * without one it returns only what the root template itself declares.
      *
-     * @param string $templatePath VFS path of `$source`, for relative include resolution
+     * @param string      $templatePath    VFS path of `$source`, for relative include resolution
+     * @param string|null $contentTemplate the template the page's `{content}` will include (the value the host
+     *                                     passes under ContentNode::CONTEXT_KEY), so its declarations are gathered too
      *
      * @throws InvalidArgumentException
      */
-    public function gatherAssets(string $source, string $templatePath = ''): CollectedAssets
+    public function gatherAssets(string $source, string $templatePath = '', ?string $contentTemplate = null): CollectedAssets
     {
         // Per-instance memo only. `withLoader()` clones the engine for each
         // render, so this lives exactly as long as the loader chain whose
         // answers it caches -- a memo keyed on source alone, on the shared
         // engine, would hand one theme's block styles to the next theme's page.
-        return $this->gatheredAssets[md5($templatePath . "\0" . $source)] ??=
-            new AssetGatherer($this->loader, $this)->gather($this->compile($source), $templatePath);
+        return $this->gatheredAssets[md5($templatePath . "\0" . ($contentTemplate ?? '') . "\0" . $source)] ??=
+            new AssetGatherer($this->loader, $this)->gather($this->compile($source), $templatePath, $contentTemplate);
     }
 
     /**
