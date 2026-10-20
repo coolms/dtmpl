@@ -193,6 +193,29 @@ The path resolves through the loader chain, so what a given name resolves to
 depends on which loaders are installed and their priority -- see
 [loaders.md](loaders.md).
 
+### `{content}`
+
+```
+{include:`layouts/site`}
+  {fill:main}<main>{content}</main>{endfill}
+{endinclude}
+```
+
+A frame is the chrome around a page; `{content}` marks where the page's own
+content goes. The frame does not choose what draws it: the host names that
+template under the render-data key `__content` (`ContentNode::CONTEXT_KEY`),
+usually one template per content type, and `{content}` includes it there,
+with the same loader chain, the same circular-include check and the caller's
+context as `{include:}`.
+
+- It takes no argument. `{content:`x`}` is a syntax error.
+- Rendered with no template named, it is an **error**, not an empty string. A
+  frame that draws nothing in its middle looks deliberate and says nothing.
+- `content` stays an ordinary variable name: `{var:content.body}` is
+  unaffected. Only a tag that starts with `content` is this one.
+- Assets: pass the same template to `gatherAssets($source, $path,
+  $contentTemplate)` so the `{css}` / `{js}` it declares reach the head.
+
 ### Slots and fills
 
 A layout declares a slot; the page that includes the layout fills it.

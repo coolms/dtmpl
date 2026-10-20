@@ -7,6 +7,7 @@ namespace CoolMS\Dtmpl\Runtime;
 use CoolMS\Dtmpl\AST\ComparisonNode;
 use CoolMS\Dtmpl\AST\ConditionalNode;
 use CoolMS\Dtmpl\AST\ConstNode;
+use CoolMS\Dtmpl\AST\ContentNode;
 use CoolMS\Dtmpl\AST\DefineNode;
 use CoolMS\Dtmpl\AST\FillNode;
 use CoolMS\Dtmpl\AST\FilterNode;
@@ -117,6 +118,7 @@ final class Executor
             $node instanceof LoopNode => $this->executeLoop($node, $context),
             $node instanceof ConditionalNode => $this->executeConditional($node, $context),
             $node instanceof IncludeNode => $this->executeInclude($node, $context),
+            $node instanceof ContentNode => $this->executeContent($node, $context),
             $node instanceof SlotNode => $this->executeSlot($node, $context),
             $node instanceof ConstNode => $this->executeConst($node, $context),
             $node instanceof WidgetNode => $this->executeWidget($node, $context),
@@ -475,6 +477,22 @@ final class Executor
     /**
      * Execute include node -- loads a partial and renders it, optionally with slot fills.
      */
+    /**
+     * `{content}`: include the template the host named under {@see ContentNode::CONTEXT_KEY}, exactly as
+     * `{include:}` would -- same loader, same circular check, the caller's context.
+     *
+     * !! Unnamed is an error, never an empty middle (see ContentNode).
+     */
+    private function executeContent(ContentNode $node, Context $context): string
+    {
+        $path = $context->get([ContentNode::CONTEXT_KEY]);
+        if (!is_string($path) || '' === $path) {
+            throw new RuntimeException(sprintf('{content} at line %d: the host named no content template (render data key `%s`)', $node->line, ContentNode::CONTEXT_KEY));
+        }
+
+        return $this->executeInclude(new IncludeNode($path, [], [], $node->line, $node->column), $context);
+    }
+
     private function executeInclude(IncludeNode $node, Context $context): string
     {
         if (null === $this->loader || null === $this->compiler) {

@@ -38,6 +38,7 @@ final class Lexer
         'widget' => TokenType::Widget,
         'const' => TokenType::Const,
         't' => TokenType::Translate,
+        'content' => TokenType::Content,
     ];
 
     /**

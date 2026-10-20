@@ -39,7 +39,7 @@ final class KeywordRegistry
      * @var list<string>
      */
     public const array KEYWORDS = [
-        'const',
+        'const', 'content',
         'def', 'define',
         'endfill', 'endif', 'endinclude', 'endloop', 'endno', 'endslot', 'endunless',
         'else',
