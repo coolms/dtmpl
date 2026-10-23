@@ -120,6 +120,13 @@ final class FilterRegistry
                 throw new SecurityException("PHP function '$funcName' is not allowed");
             }
 
+            // json_encode reads an object's public properties and calls its jsonSerialize(): it is handed what printing
+            // is handed -- scalars, arrays of them, a date or an enum as text, a Stringable as its string, any other
+            // object as null -- as the json filter is ({@see Output::plain()}).
+            if ('json_encode' === $funcName) {
+                $value = Output::plain($value);
+            }
+
             // Call PHP function
             /** @var callable-string $callableFn */
             $callableFn = $funcName;
@@ -317,7 +324,8 @@ final class FilterRegistry
         });
 
         // Format filters
-        $this->register('json', fn ($v) => json_encode($v, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        // Arrays and scalars only: an object becomes what Output::plain() makes of it, never its properties.
+        $this->register('json', fn ($v) => json_encode(Output::plain($v), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         // URL filters
         $this->register('url_encode', fn ($v) => urlencode((string) $v));
@@ -501,11 +509,18 @@ final class FilterRegistry
                     return ($item[$key] ?? null) === $expected;
                 }
                 if (is_object($item)) {
+                    // This filter reads a field itself rather than through a context path, so it asks the same
+                    // policy: without it, `filter_by:`password`,`a-guess`` is an equality test against a secret,
+                    // one guess per render, around every refusal in Context and EntityWrapper. A PUBLIC property
+                    // only, too -- `property_exists()` is true of a private one, and reading it from here raises.
+                    if (!ObjectReadPolicy::mayRead($item, (string) $key)) {
+                        return false;
+                    }
                     $getter = 'get' . ucfirst((string) $key);
                     if (method_exists($item, $getter)) {
                         return $item->$getter() === $expected;
                     }
-                    if (property_exists($item, $key)) {
+                    if (ObjectReadPolicy::hasPublicProperty($item, (string) $key)) {
                         return $item->$key === $expected;
                     }
                 }

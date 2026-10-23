@@ -183,6 +183,12 @@ final class Context
             if (!is_object($current)) {
                 return null;
             }
+            // What a template may read from an object, before PropertyAccessor is asked: a secret is refused
+            // however it is reached, and a bare method call is not a read at all ({@see ObjectReadPolicy}).
+            // A refusal reads as a miss, as an absent property does.
+            if (!ObjectReadPolicy::mayRead($current, $segment)) {
+                return null;
+            }
             try {
                 $current = $this->propertyAccessor->getValue($current, $segment);
             } catch (NoSuchPropertyException|NoSuchIndexException|AccessException) {

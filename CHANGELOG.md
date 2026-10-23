@@ -3,14 +3,151 @@
 All notable changes to `coolms/dtmpl` are recorded here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning is described in `CONTRIBUTING.md` -- read it before assuming what a
-major number means here.
+Versioning is described in the [CoolMS contributing guide](https://github.com/coolms/.github/blob/develop/CONTRIBUTING.md)
+-- read it before assuming what a major number means here.
 
 !! Entries dated before 2026-09-01 were **reconstructed** from tags and commit
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.3.0-alpha3 - 2026-10-22
+
+### Added: `{content}`, where a frame draws the page
+
+`{content}` includes the template the host names under the render-data key
+`__content` (`ContentNode::CONTEXT_KEY`), exactly as `{include:}` would. A
+frame (the chrome around a page) can then draw any kind of page without
+knowing which kind it is. With no template named it throws rather than
+rendering an empty middle; it takes no argument. `DtmplEngine::gatherAssets()`
+takes an optional third argument, the content template, so its `{css}` /
+`{js}` declarations are gathered with the frame's. `content` is a new tag
+keyword only at the start of a tag: `{var:content.body}` is unchanged.
+
+## 2.3.0-alpha2 - 2026-10-09
+
+### Added: a wrapper can read only what a read guard allows
+
+`EntityWrapperFactory::wrap(object $entity, ?Closure $fieldsFor = null)` takes
+an optional read guard, `$fieldsFor(object): ?list<string>`: the fields a
+template may read of a record, or null when it may read none of it. With one:
+
+- `wrap()` answers null when the guard refuses the record itself, so a refused
+  record reads as an absent one;
+- the wrapper reads only the allowed fields, under any spelling of their name
+  (`first_name`, `firstName`, `getFirstName`); any other field reads as absent;
+- it hands out no object of its own. A related record, or one in an array or a
+  collection, is asked of the same guard and comes back wrapped, or absent when
+  the guard refuses it -- left out of a collection -- so a template's next step
+  on it is limited too, however deep the path. Dates, enums and Symfony uids
+  are values and come back as they are;
+- it prints as the empty string: an entity's string form is not one of its
+  fields.
+
+Without a guard, `wrap()` and the wrapper behave as before.
+`EntityWrapper::guarded()` builds the same thing directly, and
+`ObjectReadPolicy::namesReadBy()` names the fields a path segment may read.
+
+### Changed: printing a value and the `json` filter never dump an object
+
+`Output::stringify()` and the `json` filter take arrays and scalars only. An
+object becomes its date text, its enum value (or its name), its string form, or
+nothing -- never a JSON dump of its public properties, which read around every
+limit on what a template may read of it. In an array, such an object becomes
+null. A template that printed an object without a string form, or passed one
+to `json`, now gets the empty string or null there; read the fields it needs
+instead. `Output::plain()` is the conversion both use.
+
+Taking away output that used to print is a removal, which `CONTRIBUTING.md`
+counts as a break: ordinarily it would arrive as a deprecation and wait for a
+planned major. It ships in this minor, with no deprecation first, because it is
+a security fix: the dump read around the limits that 2.3.0-alpha1 and the read
+guard above put on a template.
+
+### Added: a variable can be marked as filled by the caller
+
+`ContextSchemaVariable::$callerFillable` is the author's mark that whoever asks
+for a render may supply the variable's value. It is off unless an author
+switches it on. A template's text says what the template reads, never who may
+fill it, so nothing the validator extracts is marked, and a host that takes
+values from a caller can refuse every path not in
+`ContextSchema::callerFillablePaths()`.
+
+The mark is persisted only when it is on (`"callerFillable": true`), and only a
+JSON `true` reads back as one. A `"true"` or a `1` stays unmarked, because this
+mark grants something.
+
+A host re-extracts the schema after every edit of the template's text, and that
+would unmark every variable. `ContextSchema::withCallerFillableCarriedFrom()`
+carries the marks over from the schema being replaced, for each path that still
+exists.
+
+An entity reference (a variable that names an `entityType`) is never marked,
+however it is built: from a stored schema that marks it, constructed marked, or
+marked afterwards. A reference is a read of a record, which the host checks
+against the caller's access, and never a value the caller types in, so a path
+that has become a reference loses its mark across a re-extraction as well.
+
+### Fixed: `develop` is aliased as 2.3.x-dev
+
+The branch alias in `composer.json` still named `develop` 2.2.x-dev after
+2.3.0-alpha1. It now reads 2.3.x-dev, so a project that requires `2.3.x-dev`
+gets `develop`, and one that requires `2.2.x-dev` no longer does.
+
+## 2.3.0-alpha1 - 2026-10-08
+
+### Changed: a template reads an object's fields, not its secrets, and does not call its methods
+
+A path segment that reaches an object was handed to `PropertyAccessor`, which
+reads a public property, a `get`/`is`/`has`/`can` getter, a magic `__get` or an
+`ArrayAccess` index -- and also CALLS a public method whose name is the segment
+itself. Two things followed from that, and both are now refused.
+
+- A field whose name says it holds a secret -- a password, a token, a
+  credential, a recovery code, a secret of any kind -- is refused, and the name
+  is judged after the getter prefix is stripped. `password` and `getPassword`
+  are therefore the same refusal: making the property private and keeping a
+  getter for the framework that needs it does not reopen the field to a
+  template.
+- A segment that is a bare method call rather than a property or a getter is
+  refused outright. Such a method may change state -- an entity's
+  `reactivate()`, `uninstall()`, `hide()`, `end()` -- and a template is read, so
+  a reader of one should not have to know which of its paths act.
+
+Both refusals judge the name `PropertyAccessor` will go looking for, not the one
+written: it camelizes a segment before it tries a method, and PHP matches a
+method name without regard to case. Judging the written segment would have left
+every refusal walkable by writing the same name another way -- `re_activate`
+reaching `reactivate()`, `hashed_code` reaching `hashedCode()`.
+
+A method refuses the segment even where a public property of the same name
+shadows it: `PropertyAccessor` tries methods before properties, so on an object
+carrying both, reading the field was never what happened -- the method ran and
+its value came back.
+
+The `filter_by` filter asks the same policy. It reads a field off an object
+itself rather than through a context path, so without that it was an equality
+test against a secret, one guess per render, around both refusals; it also now
+reads a public property only, where before a private one of the same name
+raised.
+
+A refusal reads as a miss: the segment resolves to null, exactly as an absent
+property already does, so a template cannot learn from the answer whether the
+field is there. Arrays are untouched -- an array holds what a renderer put in
+it, and holds no methods. The rule is one class, `Runtime\ObjectReadPolicy`, and
+it is asked in both places an object is read: `Runtime\Context` for an object a
+renderer put in a context, and `Runtime\EntityWrapper` for one handed to a
+widget's caller. Neither depends on the other being the only way in.
+
+A template that used such a field or called such a method renders an empty
+value where it used to render one. The names are matched, not the values,
+because a template engine cannot know an application's entities; an application
+that holds a secret in a field whose name does not say so marks it, and the
+layer that can see the marker refuses it as well.
+
+Taking away a read that used to work is a removal, which `CONTRIBUTING.md`
+counts as a break: ordinarily it would arrive as a deprecation and wait for a
+planned major. It ships in this minor, with no deprecation first, because it is
+a security fix.
 
 ### Added
 

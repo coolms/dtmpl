@@ -48,7 +48,7 @@ final class FilterRegistryTest extends TestCase
             ['#developers', '#developers'],
             ['?page=2', '?page=2'],
             ['mailto:a@b.test', 'mailto:a@b.test'],
-            ['tel:+15551234', 'tel:+15551234'],
+            ['tel:+12125550123', 'tel:+12125550123'],
             // A colon after a slash is a path with a colon in it, not a scheme.
             ['docs/a:b', 'docs/a:b'],
             ['', ''],
@@ -268,7 +268,6 @@ final class FilterRegistryTest extends TestCase
         $out = $this->registry->apply('href', 'https://x.test/?a=1&b=2');
 
         self::assertSame('https://x.test/?a=1&b=2', $out);
-        self::assertIsString($out);
     }
 
     protected function setUp(): void

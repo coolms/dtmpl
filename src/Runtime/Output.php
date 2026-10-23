@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace CoolMS\Dtmpl\Runtime;
 
+use BackedEnum;
 use DateTimeInterface;
 use Stringable;
+use UnitEnum;
 
 /**
  * The one place a value becomes output text.
@@ -91,22 +93,47 @@ final class Output
         }
 
         if (is_array($value)) {
-            return (string) json_encode($value, JSON_UNESCAPED_UNICODE);
+            return (string) json_encode(self::plain($value), JSON_UNESCAPED_UNICODE);
         }
 
+        $plain = self::plain($value);
+
+        return is_scalar($plain) ? (string) $plain : '';
+    }
+
+    /**
+     * A value as output may carry it: scalars and null as they are, an array with each of its values made plain,
+     * a date as text, an enum as its value (or its name), a Stringable as its string -- and any other object as
+     * null. An object's own properties are never dumped: what a template reads of an object is decided where it is
+     * read ({@see ObjectReadPolicy}, {@see EntityWrapper}), and an encoder walking its public properties would read
+     * around both.
+     */
+    public static function plain(mixed $value): mixed
+    {
+        if (null === $value || is_scalar($value)) {
+            return $value;
+        }
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $key => $item) {
+                $out[$key] = self::plain($item);
+            }
+
+            return $out;
+        }
         if ($value instanceof DateTimeInterface) {
             return $value->format('Y-m-d H:i:s');
         }
-
+        if ($value instanceof BackedEnum) {
+            return $value->value;
+        }
+        if ($value instanceof UnitEnum) {
+            return $value->name;
+        }
         if ($value instanceof Stringable) {
             return (string) $value;
         }
 
-        if (is_object($value) && method_exists($value, '__toString')) {
-            return (string) $value;
-        }
-
-        // Fallback to JSON
-        return (string) json_encode($value, JSON_UNESCAPED_UNICODE);
+        return null;
     }
 }

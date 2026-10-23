@@ -9,6 +9,7 @@ use CoolMS\Dtmpl\AST\AssetNode;
 use CoolMS\Dtmpl\AST\ComparisonNode;
 use CoolMS\Dtmpl\AST\ConditionalNode;
 use CoolMS\Dtmpl\AST\ConstNode;
+use CoolMS\Dtmpl\AST\ContentNode;
 use CoolMS\Dtmpl\AST\DefineNode;
 use CoolMS\Dtmpl\AST\FillNode;
 use CoolMS\Dtmpl\AST\FilterNode;
@@ -182,6 +183,7 @@ final class Parser
             $tagToken->is(TokenType::Widget) => $this->parseWidget(),
             $tagToken->is(TokenType::Const) => $this->parseConst(),
             $tagToken->is(TokenType::Translate) => $this->parseTranslate(),
+            $tagToken->is(TokenType::Content) => $this->parseContent(),
             $tagToken->is(TokenType::Else) => throw new SyntaxException('`{else}` is only valid inside `{if:}` or `{unless:}` blocks', $tagToken->line, $tagToken->column),
             default => throw new SyntaxException("Unknown tag type: $tagToken->value", $tagToken->line, $tagToken->column),
         };
@@ -733,6 +735,20 @@ final class Parser
      * The identifier is the constant name -- resolved at runtime from the
      * constants context injected by the platform.
      */
+    /**
+     * `{content}` takes no argument: which template draws the content is the host's to say, not the frame's.
+     */
+    private function parseContent(): ContentNode
+    {
+        $token = $this->consume(TokenType::Content);
+        if (!$this->current()->is(TokenType::CloseBrace)) {
+            throw new SyntaxException('`{content}` takes no argument: the host names the template that draws the page', $this->current()->line, $this->current()->column);
+        }
+        $this->consume(TokenType::CloseBrace);
+
+        return new ContentNode($token->line, $token->column);
+    }
+
     private function parseConst(): ConstNode
     {
         $token = $this->current(); // the 'const' keyword token

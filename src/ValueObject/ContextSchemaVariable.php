@@ -26,9 +26,29 @@ namespace CoolMS\Dtmpl\ValueObject;
  *
  * All three are backward-compatible: schemas constructed without
  * these arguments render exactly as before.
+ *
+ * `callerFillable` is the author's mark that whoever asks for the
+ * render may supply this variable's value. It is off unless the author
+ * switches it on: a template's text says what it reads, never who may
+ * fill it, so nothing extracted from the text marks a variable. A host
+ * that takes values from a caller refuses every variable not marked.
+ * The mark belongs to the path, so a host marks every entry of a path
+ * together, and {@see ContextSchema::withCallerFillableCarriedFrom()}
+ * keeps it across a re-extraction. Two loops that reuse an alias give
+ * their items the same paths, and so share a mark: the caller fills a
+ * path, whichever loop reads it.
+ *
+ * An entity reference (one that names an `entityType`) is never
+ * caller-filled, however it is built: from a stored schema, by a host,
+ * or by hand. A reference is a read of a record, which the host checks
+ * against the caller's access, and never a value the caller types in.
+ * So the mark is dropped here, in the one place every variable is
+ * built, and no reader has to remember to drop it.
  */
 final readonly class ContextSchemaVariable
 {
+    public bool $callerFillable;
+
     /**
      * @param list<string>      $filters
      * @param list<string>|null $fields
@@ -40,7 +60,22 @@ final readonly class ContextSchemaVariable
         public ?string $entityType = null,
         public bool $collection = false,
         public ?array $fields = null,
+        bool $callerFillable = false,
     ) {
+        $this->callerFillable = $callerFillable && null === $entityType;
+    }
+
+    public function withCallerFillable(bool $callerFillable): self
+    {
+        return new self(
+            path: $this->path,
+            filters: $this->filters,
+            loopAlias: $this->loopAlias,
+            entityType: $this->entityType,
+            collection: $this->collection,
+            fields: $this->fields,
+            callerFillable: $callerFillable,
+        );
     }
 
     /**
@@ -65,6 +100,9 @@ final readonly class ContextSchemaVariable
         }
         if (null !== $this->fields) {
             $out['fields'] = $this->fields;
+        }
+        if ($this->callerFillable) {
+            $out['callerFillable'] = true;
         }
 
         return $out;
