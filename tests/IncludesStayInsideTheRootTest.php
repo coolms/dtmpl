@@ -73,6 +73,21 @@ final class IncludesStayInsideTheRootTest extends TestCase
         );
     }
 
+    /**
+     * A NUL byte is not found, never an error. realpath() throws ValueError on one (PHP 8.5), where the
+     * file_exists() it replaced answered false, so an include naming "\0" escaped the loader as an uncaught error.
+     */
+    #[Test]
+    public function aNulInThePathIsNotFound(): void
+    {
+        $loader = new FilesystemTemplateLoader($this->root);
+
+        $this->assertRefused(fn () => $loader->load("partials/inside.dtmpl\0"), 'a NUL after an existing name');
+        $this->assertRefused(fn () => $loader->load($this->dir . "/outside/marker.dtmpl\0.dtmpl"), 'a NUL in an absolute path');
+        self::assertFalse($loader->supports("partials/inside.dtmpl\0"), 'supports() says no, and does not throw');
+        self::assertStringStartsNotWith('refused: ValueError', $this->render("{include:`../partials/inside.dtmpl\0`}"));
+    }
+
     protected function setUp(): void
     {
         $this->dir = sys_get_temp_dir() . '/dtmpl_root_' . bin2hex(random_bytes(4));

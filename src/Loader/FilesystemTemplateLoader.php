@@ -52,9 +52,11 @@ final readonly class FilesystemTemplateLoader implements PrioritizedLoaderInterf
 
     public function load(string $path, string $basePath = ''): string
     {
-        $resolvedPath = $this->resolve($path, $basePath);
+        // Read only what the filesystem names now, as a file inside the root. resolve() hands back a path that did
+        // not exist unchecked; reading that after a file_exists() would follow whatever appeared there in between.
+        $resolvedPath = realpath($this->resolve($path, $basePath));
 
-        if (!file_exists($resolvedPath)) {
+        if (false === $resolvedPath || !$this->inside($resolvedPath) || !is_file($resolvedPath)) {
             throw new TemplateNotFoundException($path, $basePath);
         }
 
@@ -83,15 +85,27 @@ final readonly class FilesystemTemplateLoader implements PrioritizedLoaderInterf
             $candidate = rtrim($baseDir, '/') . '/' . $path;
         }
 
+        // No file name holds a NUL, and realpath() throws ValueError on one (PHP 8.5) where file_exists() answered
+        // false: not found, never an error.
+        if (str_contains($candidate, "\0")) {
+            throw new TemplateNotFoundException($path, $basePath);
+        }
+
         $real = realpath($candidate);
         if (false === $real) {
             // Nothing there: load() reports it not found, supports() says no.
             return $candidate;
         }
-        if (null === $this->root || !str_starts_with($real, $this->root . '/')) {
+        if (!$this->inside($real)) {
             throw new TemplateNotFoundException($path, $basePath);
         }
 
         return $real;
+    }
+
+    /** Whether a canonical path lies inside the canonical base path. */
+    private function inside(string $real): bool
+    {
+        return null !== $this->root && str_starts_with($real, $this->root . '/');
     }
 }
