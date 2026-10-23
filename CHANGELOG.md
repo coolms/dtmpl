@@ -10,6 +10,21 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Security
+
+- `FilesystemTemplateLoader` reads only inside its base path. An existing file
+  is served only when its canonical path (`..` and symlinks resolved) lies
+  inside the canonical base path; an absolute path, a `../` climb or a symlink
+  that lands outside is not found. It used to take an absolute path as-is and
+  join a relative one with no check, so an include in a template somebody wrote
+  could read any file the process could.
+- A path holding a NUL byte is not found, never an error: `realpath()` throws
+  `ValueError` on one (PHP 8.5).
+- `load()` reads only a canonical path that is a file inside the base path, at
+  the moment it reads, never a path it was handed back unchecked.
+
 ## 2.3.0-alpha3 - 2026-10-22
 
 ### Added: `{content}`, where a frame draws the page
