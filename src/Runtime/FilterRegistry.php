@@ -103,13 +103,16 @@ final class FilterRegistry
     /**
      * Apply filter to value.
      *
+     * The value goes first, before the arguments, unless `$placeholder` names its place among them (`?` in the
+     * template): `php.str_replace:`a`,`b`,?` calls str_replace('a', 'b', $value).
+     *
      * @param list<mixed> $arguments
      */
-    public function apply(string $name, mixed $value, array $arguments = []): mixed
+    public function apply(string $name, mixed $value, array $arguments = [], ?int $placeholder = null): mixed
     {
         // Custom filter
         if (isset($this->filters[$name])) {
-            return call_user_func($this->filters[$name], $value, ...$arguments);
+            return call_user_func($this->filters[$name], ...self::withValue($value, $arguments, $placeholder));
         }
 
         // PHP function
@@ -130,11 +133,8 @@ final class FilterRegistry
             // Call PHP function
             /** @var callable-string $callableFn */
             $callableFn = $funcName;
-            if (empty($arguments)) {
-                return $callableFn($value);
-            }
 
-            return $callableFn($value, ...$arguments);
+            return $callableFn(...self::withValue($value, $arguments, $placeholder));
         }
 
         throw new UnknownFilterException("Unknown filter: $name");
@@ -151,6 +151,20 @@ final class FilterRegistry
         $phpFilters = array_map(fn ($f) => self::PHP_PREFIX . $f, array_keys($this->phpFunctions));
 
         return array_merge($filters, $phpFilters);
+    }
+
+    /**
+     * The call's arguments with the piped value in its place: at `$placeholder`, or first.
+     *
+     * @param list<mixed> $arguments
+     *
+     * @return list<mixed>
+     */
+    private static function withValue(mixed $value, array $arguments, ?int $placeholder): array
+    {
+        array_splice($arguments, $placeholder ?? 0, 0, [$value]);
+
+        return $arguments;
     }
 
     /**

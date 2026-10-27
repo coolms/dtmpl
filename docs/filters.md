@@ -18,6 +18,27 @@ They apply left to right, so the last one wins the final shape.
 Below, `filter:a,b` means "takes arguments `a` then `b`". Every argument is
 optional unless stated; the defaults are in the table.
 
+### Where the piped value goes: `?`
+
+The piped value is a filter's **first** argument. When a function wants it
+elsewhere, `?` in the argument list marks the argument that receives it -- the
+same mark PHP 8.6's partial function application uses:
+
+```
+{var:text php.str_replace:`a`,`b`,?}     -> str_replace('a', 'b', $text)
+{var:width php.str_pad:`7`,?,`x`}        -> str_pad('7', $width, 'x')
+{var:name php.strtoupper}                -> strtoupper($name), as before
+```
+
+- **One `?` per filter.** One value flows through the chain, so it has one
+  place to go; a second `?` is a syntax error.
+- **`?` belongs in a filter's argument list** and nowhere else in a tag. In
+  text, and inside a backtick string, `?` is just a question mark.
+- **`...` is reserved**, and a syntax error today, so it can mean something later
+  without changing a template that parses now.
+- `_` is an ordinary identifier, not a placeholder: as an argument it is the
+  text `_`.
+
 ---
 
 ## The one that catches everybody
@@ -118,7 +139,11 @@ a `php.` prefix:
 ```
 {var:name php.strtoupper}
 {var:x php.str_pad:8,`0`,0}
+{var:text php.str_replace:`a`,`b`,?}
 ```
+
+The value goes first unless `?` marks its place -- see above: `str_replace`
+and `implode` take theirs later.
 
 The list is compiled into the engine. It is:
 

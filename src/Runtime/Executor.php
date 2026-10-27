@@ -863,7 +863,7 @@ final class Executor
             $value = (string) $value;
         }
 
-        $result = $this->filters->apply($filter->name, $value, array_values($filter->arguments));
+        $result = $this->filters->apply($filter->name, $value, array_values($filter->arguments), $filter->placeholder);
 
         return $wasSafe && !($result instanceof HtmlSafe)
             ? RenderedHtml::of($result)

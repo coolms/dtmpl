@@ -945,11 +945,23 @@ final class Parser
         // Parse arguments. ONE `:` opens the list; `,` separates the
         // arguments inside it.
         $arguments = [];
+        // Where the piped value goes, when `?` marks it (aligned with PHP 8.6 partial function application). One
+        // value flows through a chain, so a call has one place for it: a second `?` is refused.
+        $placeholder = null;
         if ($this->current()->is(TokenType::Colon)) {
             $this->consume(TokenType::Colon);
             // Parse argument list
             do {
-                $arguments[] = $this->parseValue();
+                if ($this->current()->is(TokenType::Placeholder)) {
+                    $mark = $this->current();
+                    if (null !== $placeholder) {
+                        throw new SyntaxException(sprintf('Filter `%s`: one `?` per filter -- it marks where the piped value goes, and one value flows through the chain.', $filterName), $mark->line, $mark->column);
+                    }
+                    $placeholder = count($arguments);
+                    $this->advance();
+                } else {
+                    $arguments[] = $this->parseValue();
+                }
                 if ($this->current()->is(TokenType::Comma)) {
                     $this->consume(TokenType::Comma);
                 } else {
@@ -969,7 +981,7 @@ final class Parser
             }
         }
 
-        return new FilterNode($filterName, $arguments, $token->line, $token->column);
+        return new FilterNode($filterName, $arguments, $token->line, $token->column, $placeholder);
     }
 
     /**
@@ -1015,6 +1027,9 @@ final class Parser
         // Array literal: [value1, value2] or [key: value, key2: value2]
         if ($token->is(TokenType::OpenBracket)) {
             return $this->parseArray();
+        }
+        if ($token->is(TokenType::Placeholder)) {
+            throw new SyntaxException('`?` marks the filter argument that receives the piped value; it belongs in a filter\'s argument list, as in `{var:text php.str_replace:`a`,`b`,?}`.', $token->line, $token->column);
         }
         // Identifier (variable reference in array)
         if ($token->is(TokenType::Identifier)) {
