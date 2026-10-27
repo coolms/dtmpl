@@ -22,6 +22,7 @@ enum TokenType: string
     case Colon = 'COLON'; // :
     case Pipe = 'PIPE'; // |
     case Comma = 'COMMA'; // ,
+    case Placeholder = 'PLACEHOLDER'; // ? -- the filter argument that receives the piped value
     case Dot = 'DOT'; // .
     case Equals = 'EQUALS'; // = (also equality in {if:})
     case Neq = 'NEQ'; // !=

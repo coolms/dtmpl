@@ -623,8 +623,15 @@ final class Lexer
                 $this->addToken(TokenType::Pipe, $this->advance());
             } elseif (',' === $char) {
                 $this->addToken(TokenType::Comma, $this->advance());
+            } elseif ('.' === $char && '.' === $this->peek(1) && '.' === $this->peek(2)) {
+                // Reserved so it can mean something later without changing a template that parses today.
+                throw new SyntaxException('`...` is reserved and not supported: a filter takes the piped value once, marked with `?`, or first when nothing is marked.', $this->line, $this->column);
             } elseif ('.' === $char) {
                 $this->addToken(TokenType::Dot, $this->advance());
+            } elseif ('?' === $char) {
+                // Tag mode only: in text and inside a backtick string `?` stays what it is. The parser accepts it in a
+                // filter's argument list and nowhere else.
+                $this->addToken(TokenType::Placeholder, $this->advance());
             } elseif ('!' === $char) {
                 // `!` is only valid as the first char of `!=`. A bare
                 // `!` is not a DTMPL operator and gets a targeted error.

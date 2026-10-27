@@ -12,6 +12,16 @@ same commit as the change it describes.
 
 ## Unreleased
 
+### Added
+
+- `?` marks the argument that receives the piped value, aligned with PHP 8.6
+  Partial Function Application syntax: `{var:text php.str_replace:`a`,`b`,?}`
+  calls `str_replace('a', 'b', $text)`. Without `?` the value stays the first
+  argument, as before. One `?` per filter; a second one is a syntax error.
+  Outside a filter's argument list `?` is refused in a tag and is plain text
+  everywhere else. `...` is reserved. Additive: `?` was a lexer error inside a
+  tag, and `_` is unchanged (an ordinary identifier, not a placeholder).
+
 ### Security
 
 - `FilesystemTemplateLoader` reads only inside its base path. An existing file
