@@ -10,6 +10,28 @@ major number means here.
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## 2.2.1 - 2026-10-27
+
+A security release on the 2.2 line, cut from the `v2.2.0` tag: it carries this
+fix and nothing else. Upgrade from any earlier version.
+
+### Security
+
+- **`FilesystemTemplateLoader` read files outside its base path.** An
+  `{include:}` with an absolute path was read as-is, and a relative one was
+  joined to the base with no check, so `../` climbed out of it: a template
+  somebody wrote could read any file the PHP process could. **Affected: every
+  release before this one -- 1.0.0, 2.0.0, 2.1.0, 2.2.0, and the pre-releases
+  2.3.0-alpha1 to 2.3.0-alpha3.** Fixed: an existing file is served only when
+  its canonical path (`..` and symlinks resolved) lies inside the canonical
+  base path; an absolute path, a `../` climb, or a symlink that lands outside is
+  "template not found". `load()` reads only a canonical path that is a file
+  inside the base path, at the moment it reads.
+- A path holding a NUL byte is "not found", never an error: `realpath()` throws
+  `ValueError` on one (PHP 8.5).
+- A host that serves templates from outside one base directory must give each
+  directory its own loader; nothing else changes.
+
 ## 2.2.0 - 2026-09-15
 
 The first version on this line cut under the branch rule: `develop` was
