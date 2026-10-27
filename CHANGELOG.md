@@ -10,7 +10,7 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.3.0-alpha4 - 2026-10-27
 
 ### Added
 
@@ -23,6 +23,9 @@ same commit as the change it describes.
   tag, and `_` is unchanged (an ordinary identifier, not a placeholder).
 
 ### Security
+
+The same fix ships alone as 2.2.1 on the 2.2 line. Affected: every release before
+these two (1.0.0 to 2.2.0, and 2.3.0-alpha1 to 2.3.0-alpha3).
 
 - `FilesystemTemplateLoader` reads only inside its base path. An existing file
   is served only when its canonical path (`..` and symlinks resolved) lies
