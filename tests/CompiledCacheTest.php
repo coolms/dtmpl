@@ -54,7 +54,23 @@ final class CompiledCacheTest extends TestCase
 
         self::assertNotEmpty($pool->keys);
         foreach ($pool->keys as $key) {
-            self::assertMatchesRegularExpression('/^dtmpl_\d+_[0-9a-f]{32}$/', $key);
+            self::assertMatchesRegularExpression('/^dtmpl_\d+_(?:[0-9a-f]{12}|unknown)_[0-9a-f]{32}$/', $key);
+        }
+    }
+
+    #[Test]
+    public function theCacheKeyCarriesTheInstalledRelease(): void
+    {
+        // AST_VERSION is only as good as the person who remembers to bump it (2.3.0-alpha4 did not). The installed
+        // release -- version and commit, from Composer -- changes with every release and every new commit of a path
+        // install, so a cached graph is never read back by a different build of this package.
+        $pool = new InMemoryPool();
+
+        new DtmplEngine(cache: $pool)->render('hello');
+
+        self::assertNotSame('unknown', DtmplEngine::release(), 'installed through Composer, the release is known');
+        foreach ($pool->keys as $key) {
+            self::assertStringContainsString('_' . DtmplEngine::release() . '_', $key);
         }
     }
 

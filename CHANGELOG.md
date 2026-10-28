@@ -10,6 +10,25 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Fixed
+
+- **2.3.0-alpha4 broke every cached template on upgrade.** `FilterNode` gained
+  `$placeholder` without a new `AST_VERSION`, so ASTs cached by an earlier
+  version were read back without it, and rendering failed with "typed property
+  CoolMS\Dtmpl\AST\FilterNode::$placeholder must not be accessed before
+  initialization". `AST_VERSION` is now `4`: entries cached by earlier
+  versions are no longer read. A host that upgraded to 2.3.0-alpha4 with a
+  persistent cache must clear the entries keyed `dtmpl_3_` (or the whole pool)
+  until it takes this release.
+- A test now records the shape of every AST node for each `AST_VERSION`: a
+  node that changes shape without a new version fails the suite.
+- The persistent cache key also carries the installed release (version and
+  commit, read through Composer's runtime API when it is there), so a cached
+  AST is never read back by a different build of this package, even when
+  `AST_VERSION` was not bumped.
+
 ## 2.3.0-alpha4 - 2026-10-27
 
 ### Added

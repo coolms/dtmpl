@@ -46,7 +46,13 @@ final class DtmplEngine implements TemplateCompilerInterface
      * constructor property, a removed one, a changed type). Old entries
      * then age out under their own keys instead of being read back.
      */
-    private const string AST_VERSION = '3';
+    private const string AST_VERSION = '4';
+
+    /** This package's name, as Composer installs it. */
+    private const string PACKAGE = 'coolms/dtmpl';
+
+    /** The installed release, read once per process ({@see release()}). */
+    private static ?string $release = null;
 
     private readonly Lexer $lexer;
     private readonly Parser $parser;
@@ -104,6 +110,30 @@ final class DtmplEngine implements TemplateCompilerInterface
             encoding: $options['encoding'] ?? 'UTF-8',
             loader: $options['loader'] ?? null,
         );
+    }
+
+    /**
+     * The installed release of this package, as part of every persistent cache key: its version and the commit it was
+     * installed from, hashed. A new release -- or, for a path or VCS install, a new commit -- reads none of the
+     * entries an earlier one cached, so a changed AST shape can never be read back even when AST_VERSION was not
+     * bumped. Read through Composer's runtime API when it is there (looked up by name: this package does not depend on
+     * Composer); without it, "unknown", and AST_VERSION alone keys the cache.
+     */
+    public static function release(): string
+    {
+        if (null !== self::$release) {
+            return self::$release;
+        }
+        $installed = 'Composer\\InstalledVersions';
+        $release = 'unknown';
+        if (class_exists($installed) && true === ([$installed, 'isInstalled'])(self::PACKAGE)) {
+            $version = ([$installed, 'getPrettyVersion'])(self::PACKAGE);
+            $reference = ([$installed, 'getReference'])(self::PACKAGE);
+            $installedAs = (is_string($version) ? $version : '') . '@' . (is_string($reference) ? $reference : '');
+            $release = substr(md5($installedAs), 0, 12);
+        }
+
+        return self::$release = $release;
     }
 
     /**
@@ -214,7 +244,7 @@ final class DtmplEngine implements TemplateCompilerInterface
         if (isset($this->compiledCache[$cacheKey])) {
             return $this->compiledCache[$cacheKey];
         }
-        $itemKey = 'dtmpl_' . self::AST_VERSION . '_' . $cacheKey;
+        $itemKey = 'dtmpl_' . self::AST_VERSION . '_' . self::release() . '_' . $cacheKey;
         // Check persistent cache. The stored value is type-checked
         // rather than trusted: a pool is shared infrastructure, and a
         // key collision or a half-written entry must degrade to a
