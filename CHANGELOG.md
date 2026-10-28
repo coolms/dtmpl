@@ -24,6 +24,10 @@ same commit as the change it describes.
   until it takes this release.
 - A test now records the shape of every AST node for each `AST_VERSION`: a
   node that changes shape without a new version fails the suite.
+- The persistent cache key also carries the installed release (version and
+  commit, read through Composer's runtime API when it is there), so a cached
+  AST is never read back by a different build of this package, even when
+  `AST_VERSION` was not bumped.
 
 ## 2.3.0-alpha4 - 2026-10-27
 
