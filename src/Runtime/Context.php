@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace CoolMS\Dtmpl\Runtime;
 
-use Symfony\Component\PropertyAccess\Exception\AccessException;
-use Symfony\Component\PropertyAccess\Exception\NoSuchIndexException;
-use Symfony\Component\PropertyAccess\Exception\NoSuchPropertyException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
@@ -173,27 +170,8 @@ final class Context
             if (null === $current) {
                 return null;
             }
-            if (is_array($current)) {
-                if (!array_key_exists($segment, $current)) {
-                    return null;
-                }
-                $current = $current[$segment];
-                continue;
-            }
-            if (!is_object($current)) {
-                return null;
-            }
-            // What a template may read from an object, before PropertyAccessor is asked: a secret is refused
-            // however it is reached, and a bare method call is not a read at all ({@see ObjectReadPolicy}).
-            // A refusal reads as a miss, as an absent property does.
-            if (!ObjectReadPolicy::mayRead($current, $segment)) {
-                return null;
-            }
-            try {
-                $current = $this->propertyAccessor->getValue($current, $segment);
-            } catch (NoSuchPropertyException|NoSuchIndexException|AccessException) {
-                return null;
-            }
+            // The one way a template reads a segment, shared with the `pluck` filter ({@see SegmentReader}).
+            $current = SegmentReader::read($current, $segment, $this->propertyAccessor);
         }
 
         return $current;
