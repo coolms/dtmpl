@@ -65,7 +65,7 @@ final class PluckFilterTest extends TestCase
         );
     }
 
-    /** @return list<mixed> */
+    /** @return array<mixed> */
     private function pluck(mixed $value, string $key): array
     {
         $result = new FilterRegistry()->apply('pluck', $value, [$key]);
