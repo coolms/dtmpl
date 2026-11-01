@@ -10,6 +10,16 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Added
+
+- **`pluck:key`**, a built-in collection filter: the field `key` of every element, as `array_column` does.
+  Each element is read the way `{var:}` reads a segment -- an array by its key, an object by its property or
+  getter, a secret never -- through one shared reader (`SegmentReader`), so the two cannot disagree; an element
+  without the field is left out. ``{var:ancestors reverse pluck:`title` join:` — `}`` is a breadcrumb in one
+  expression. Being built in, it is available to a confined renderer as the other built-ins are.
+
 ## 2.3.0-alpha5 - 2026-10-28
 
 ### Fixed

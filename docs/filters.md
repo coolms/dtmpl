@@ -109,6 +109,7 @@ when the path is missing, not when it is falsy.
 | `count` / `length` | element count; `length` also handles strings |
 | `first` / `last` | ends of an array |
 | `join:sep` | implode, default `, ` |
+| `pluck:key` | the field `key` of every element, read as `{var:}` reads it (arrays by key, objects by property or getter, never a secret); an element without it is left out |
 | `keys` / `values` | array parts |
 | `reverse` `sort` `unique` `flatten` | as named |
 | `slice:offset,length` | sub-array, keys preserved |

@@ -8,6 +8,8 @@ use CoolMS\Dtmpl\Exception\SecurityException;
 use CoolMS\Dtmpl\Exception\UnknownFilterException;
 use DateTimeInterface;
 use NumberFormatter;
+use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
 /**
  * Filter Registry.
@@ -54,6 +56,8 @@ final class FilterRegistry
 
     /** @var array<string, string> */
     private array $phpFunctions = [];
+
+    private ?PropertyAccessorInterface $accessor = null;
 
     public function __construct()
     {
@@ -281,6 +285,22 @@ final class FilterRegistry
         $this->register('first', fn ($v) => is_array($v) && !empty($v) ? reset($v) : null);
         $this->register('last', fn ($v) => is_array($v) && !empty($v) ? end($v) : null);
         $this->register('join', fn ($v, $sep = ', ') => is_array($v) ? implode($sep, $v) : (string) $v);
+        // The field of every element, as array_column does: each element read the way a template reads a segment
+        // (SegmentReader), and an element without the field left out.
+        $this->register('pluck', function ($v, $key = '') {
+            if (!is_iterable($v) || !is_string($key) || '' === $key) {
+                return [];
+            }
+            $fields = [];
+            foreach ($v as $element) {
+                $field = SegmentReader::read($element, $key, $this->accessor());
+                if (null !== $field) {
+                    $fields[] = $field;
+                }
+            }
+
+            return $fields;
+        });
         $this->register('keys', fn ($v) => is_array($v) ? array_keys($v) : []);
         $this->register('values', fn ($v) => is_array($v) ? array_values($v) : []);
 
@@ -590,5 +610,10 @@ final class FilterRegistry
         foreach (self::SAFE_PHP_FUNCTIONS as $func) {
             $this->phpFunctions[$func] = $func;
         }
+    }
+
+    private function accessor(): PropertyAccessorInterface
+    {
+        return $this->accessor ??= PropertyAccess::createPropertyAccessor();
     }
 }
