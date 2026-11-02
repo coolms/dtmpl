@@ -10,7 +10,7 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
-## Unreleased
+## 2.3.0-alpha6 - 2026-11-02
 
 ### Added
 
