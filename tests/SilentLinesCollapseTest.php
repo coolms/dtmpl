@@ -58,6 +58,21 @@ final class SilentLinesCollapseTest extends TestCase
     }
 
     #[Test]
+    public function aCommentBeforeAnEmptyBlockLeavesNeitherLine(): void
+    {
+        // A chain of {if:} lines with notes between them, as a block dispatch is written: one matches, the rest render
+        // nothing, and no line of them is left behind -- the empty {if:} after a note included.
+        $block = "  <s>\n  {if:b=`a`}A{endif}\n  {comment}\n    note\n  {endcomment}\n  {if:b=`x`}X{endif}\n"
+            . "  {comment:short}\n  {if:b=`y`}Y{endif}\n  </s>\n";
+
+        $loop = "{loop:items:b}\n" . $block . '{endloop}';
+        $top = "<s>\n  {if:c}A{endif}\n  {comment:n}\n  {if:d}X{endif}\n</s>";
+
+        self::assertSame("  <s>\n  A\n  </s>\n", $this->engine->render($loop, ['items' => ['a']]));
+        self::assertSame("<s>\n  A\n</s>", $this->engine->render($top, ['c' => true, 'd' => false]));
+    }
+
+    #[Test]
     public function silentNodesSideBySideOnOneLineCollapseAsOne(): void
     {
         self::assertSame("<p>a</p>\n<p>b</p>", $this->engine->render("<p>a</p>\n  {comment:x}{comment:y}\n<p>b</p>"));

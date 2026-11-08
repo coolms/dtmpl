@@ -73,32 +73,15 @@ final class WhitespaceTrimmer
 
         $count = count($result);
 
-        $collapsed = [];
         for ($i = 0; $i < $count; ++$i) {
-            if (!$this->isSilent($result[$i])) {
+            if (!$result[$i] instanceof DefineNode) {
                 continue;
             }
-            // Comments and asset blocks written side by side are one run: the line is judged from the text before
-            // the first of them to the text after the last. Only the last can collapse it: a silent node to its right
-            // is not text, so the earlier ones leave it alone.
-            $first = $i;
-            if ($result[$i] instanceof SilentNode) {
-                while ($first > 0 && $result[$first - 1] instanceof SilentNode) {
-                    --$first;
-                }
-            }
-            $left = $result[$first - 1] ?? null;
+            $left = $result[$i - 1] ?? null;
             $right = $result[$i + 1] ?? null;
-            if ($result[$i] instanceof SilentNode) {
-                [$newLeft, $newRight] = $this->trimSilentLine($left, $right, isset($collapsed[$first - 2]));
-            } else {
-                [$newLeft, $newRight] = $this->trimBorder($left, $right, false);
-            }
-            if ($newRight !== $right) {
-                $collapsed[$i] = true;
-            }
-            if ($newLeft !== $left && $first > 0 && $newLeft instanceof Node) {
-                $result[$first - 1] = $newLeft;
+            [$newLeft, $newRight] = $this->trimBorder($left, $right, false);
+            if ($newLeft !== $left && $i > 0 && $newLeft instanceof Node) {
+                $result[$i - 1] = $newLeft;
                 $changed = true;
             }
             if ($newRight !== $right && $i + 1 < $count && $newRight instanceof Node) {
@@ -129,6 +112,35 @@ final class WhitespaceTrimmer
             }
         }
 
+        // Comments and asset blocks last: an empty block on the line after one has already been judged from its own
+        // line start, which collapsing the comment's line first would have taken from it.
+        $collapsed = [];
+        for ($i = 0; $i < $count; ++$i) {
+            if (!$result[$i] instanceof SilentNode) {
+                continue;
+            }
+            // Side by side on one line they are one run: the line is judged from the text before the first of them to
+            // the text after the last. Only the last can collapse it: a silent node to its right is not text.
+            $first = $i;
+            while ($first > 0 && $result[$first - 1] instanceof SilentNode) {
+                --$first;
+            }
+            $left = $result[$first - 1] ?? null;
+            $right = $result[$i + 1] ?? null;
+            [$newLeft, $newRight] = $this->trimSilentLine($left, $right, isset($collapsed[$first - 2]));
+            if ($newRight !== $right) {
+                $collapsed[$i] = true;
+            }
+            if ($newLeft !== $left && $first > 0 && $newLeft instanceof Node) {
+                $result[$first - 1] = $newLeft;
+                $changed = true;
+            }
+            if ($newRight !== $right && $i + 1 < $count && $newRight instanceof Node) {
+                $result[$i + 1] = $newRight;
+                $changed = true;
+            }
+        }
+
         return $changed ? $result : $children;
     }
 
@@ -150,14 +162,6 @@ final class WhitespaceTrimmer
         }
 
         return $this->trimBorder($left, $right, true);
-    }
-
-    /**
-     * Silent predicate: a `{def:}`, a comment, or an asset block -- each renders nothing at its own place.
-     */
-    private function isSilent(Node $node): bool
-    {
-        return $node instanceof DefineNode || $node instanceof SilentNode;
     }
 
     /**

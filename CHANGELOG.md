@@ -22,6 +22,13 @@ same commit as the change it describes.
   was, and the parser a `SilentNode` for a comment or an asset block; the AST cache version moves to 5, so
   cached trees from earlier versions are rebuilt.
 
+### Fixed
+
+- **A comment on the line before an empty block no longer leaves that block's line behind.** Comment and asset
+  lines are collapsed after the blocks now, so an `{if:}` that renders nothing on the next line is judged from
+  its own line start and goes with its line. Before, a chain of `{if:}` lines with notes between them, as a
+  block dispatch is written, printed one indented blank line per note.
+
 ## 2.3.0-alpha6 - 2026-11-02
 
 ### Added
