@@ -22,6 +22,14 @@ same commit as the change it describes.
   was, and the parser a `SilentNode` for a comment or an asset block; the AST cache version moves to 5, so
   cached trees from earlier versions are rebuilt.
 
+### Fixed
+
+- **A comment no longer changes how the lines around it collapse.** Comments and asset blocks are taken out
+  before any other trimming: the text on either side of one is joined, and its own line goes with it when nothing
+  else is written there. `{def:}` and the blocks then see the text as if no comment had been written. Before, a
+  chain of `{if:}` lines with notes between them, as a block dispatch is written, printed one indented blank line
+  per note, and a comment beside an `{endif}` on the same line left a blank line.
+
 ## 2.3.0-alpha6 - 2026-11-02
 
 ### Added
