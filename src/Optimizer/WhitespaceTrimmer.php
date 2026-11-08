@@ -71,6 +71,12 @@ final class WhitespaceTrimmer
             $result[] = $node;
         }
 
+        $withoutSilent = $this->withoutSilentNodes($result);
+        if ($withoutSilent !== $result) {
+            $result = $withoutSilent;
+            $changed = true;
+        }
+
         $count = count($result);
 
         for ($i = 0; $i < $count; ++$i) {
@@ -112,56 +118,61 @@ final class WhitespaceTrimmer
             }
         }
 
-        // Comments and asset blocks last: an empty block on the line after one has already been judged from its own
-        // line start, which collapsing the comment's line first would have taken from it.
-        $collapsed = [];
-        for ($i = 0; $i < $count; ++$i) {
-            if (!$result[$i] instanceof SilentNode) {
-                continue;
-            }
-            // Side by side on one line they are one run: the line is judged from the text before the first of them to
-            // the text after the last. Only the last can collapse it: a silent node to its right is not text.
-            $first = $i;
-            while ($first > 0 && $result[$first - 1] instanceof SilentNode) {
-                --$first;
-            }
-            $left = $result[$first - 1] ?? null;
-            $right = $result[$i + 1] ?? null;
-            [$newLeft, $newRight] = $this->trimSilentLine($left, $right, isset($collapsed[$first - 2]));
-            if ($newRight !== $right) {
-                $collapsed[$i] = true;
-            }
-            if ($newLeft !== $left && $first > 0 && $newLeft instanceof Node) {
-                $result[$first - 1] = $newLeft;
-                $changed = true;
-            }
-            if ($newRight !== $right && $i + 1 < $count && $newRight instanceof Node) {
-                $result[$i + 1] = $newRight;
-                $changed = true;
-            }
-        }
-
         return $changed ? $result : $children;
     }
 
     /**
-     * The line of a comment or an asset block collapses only when nothing else is written on it: the text before it
-     * ends a line (or the template starts there), or is the indent left by a silent line just collapsed before it.
+     * The children without their comments and asset blocks, which render nothing where they are written: the text on
+     * either side of one (or of several side by side) becomes one text. When nothing else is written on its line --
+     * the text before it ends a line, or the children start there, and the text after it ends the line -- the line
+     * goes with it: its indentation and its newline. Written mid-line, or beside a tag on the same line, it leaves the
+     * line as authored. Done before every other pass, so `{def:}` and the blocks see the text as if no comment had
+     * been written.
      *
-     * @return array{?Node, ?Node}
+     * @param list<Node> $children
+     *
+     * @return list<Node>
      */
-    private function trimSilentLine(?Node $left, ?Node $right, bool $afterCollapsedLine): array
+    private function withoutSilentNodes(array $children): array
     {
-        if ($afterCollapsedLine && $left instanceof TextNode && 1 === preg_match('/^[ \t]*$/', $left->content)) {
-            [, $newRight] = $this->trimBorder(null, $right, true);
-            if ($newRight === $right) {
-                return [$left, $right];
+        $out = [];
+        $count = count($children);
+        $removed = false;
+        for ($i = 0; $i < $count; ++$i) {
+            if (!$children[$i] instanceof SilentNode) {
+                $out[] = $children[$i];
+                continue;
             }
-
-            return [new TextNode('', $left->line, $left->column), $newRight];
+            $removed = true;
+            while ($i + 1 < $count && $children[$i + 1] instanceof SilentNode) {
+                ++$i;
+            }
+            $left = [] === $out ? null : $out[count($out) - 1];
+            $right = $children[$i + 1] ?? null;
+            $leftText = $left instanceof TextNode ? $left->content : null;
+            $rightText = $right instanceof TextNode ? $right->content : null;
+            $startsLine = null === $left || (null !== $leftText && 1 === preg_match('/(?:^|\n)[ \t]*$/', $leftText)
+                && (1 === preg_match('/\n[ \t]*$/', $leftText) || 1 === count($out)));
+            $endsLine = null !== $rightText && 1 === preg_match('/^[ \t]*\n/', $rightText);
+            if ($startsLine && $endsLine) {
+                $leftText = null === $leftText ? null : (string) preg_replace('/[ \t]*$/', '', $leftText);
+                $rightText = (string) preg_replace('/^[ \t]*\n/', '', $rightText, 1);
+            }
+            if ($left instanceof TextNode && null !== $leftText) {
+                // The text after it joins the text before it into one.
+                array_pop($out);
+                $joined = $leftText . ($right instanceof TextNode ? (string) $rightText : '');
+                $out[] = new TextNode($joined, $left->line, $left->column);
+                $i += $right instanceof TextNode ? 1 : 0;
+                continue;
+            }
+            if ($right instanceof TextNode) {
+                $out[] = new TextNode((string) $rightText, $right->line, $right->column);
+                ++$i;
+            }
         }
 
-        return $this->trimBorder($left, $right, true);
+        return $removed ? $out : $children;
     }
 
     /**
