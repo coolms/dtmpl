@@ -27,22 +27,26 @@ final class LexerCommentTest extends TestCase
     private Lexer $lexer;
 
     #[Test]
-    public function aBlockCommentEmitsNoTokens(): void
+    public function aBlockCommentEmitsOnlyItsPlace(): void
     {
         $tokens = $this->lexer->tokenize('{comment}' . self::SECRET . '{endcomment}');
 
-        // Nothing but EOF: not an empty Text token, no token at all.
-        self::assertCount(1, $tokens);
-        self::assertTrue($tokens[0]->is(TokenType::Eof));
+        // One COMMENT token with no value, marking where it was so its line can collapse, then EOF: never its text.
+        self::assertCount(2, $tokens);
+        self::assertTrue($tokens[0]->is(TokenType::Comment));
+        self::assertSame('', $tokens[0]->value);
+        self::assertTrue($tokens[1]->is(TokenType::Eof));
     }
 
     #[Test]
-    public function anInlineCommentEmitsNoTokens(): void
+    public function anInlineCommentEmitsOnlyItsPlace(): void
     {
         $tokens = $this->lexer->tokenize('{comment:' . self::SECRET . '}');
 
-        self::assertCount(1, $tokens);
-        self::assertTrue($tokens[0]->is(TokenType::Eof));
+        self::assertCount(2, $tokens);
+        self::assertTrue($tokens[0]->is(TokenType::Comment));
+        self::assertSame('', $tokens[0]->value);
+        self::assertTrue($tokens[1]->is(TokenType::Eof));
     }
 
     #[Test]

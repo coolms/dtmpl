@@ -535,6 +535,19 @@ matching branch, an empty `{loop:}`, an unfilled `{slot:}`, an `{include:}`
 whose partial rendered nothing, a `{fill:}` declaration, and a `{widget:}` whose
 renderer returned `null`.
 
+Comments and `{css}` / `{js}` asset blocks render nothing where they are written
+(an asset block's body is gathered into `{var:_assets.css}` / `{var:_assets.js}`),
+so they take their line too -- but only when nothing else is written on it:
+
+- a comment or a single-line asset block alone on its line takes the line,
+  indentation and newline included;
+- a block written over several lines, alone on its lines, takes everything from
+  its opening tag's indentation to the newline after its closing tag;
+- consecutive such lines all collapse, as consecutive `{def:}` lines do;
+- written mid-line, or after other content on the same line, a comment or an asset
+  block leaves the line as authored: `<p>a {comment:x} b</p>` renders
+  `<p>a  b</p>`, and `<p>a</p>{comment:x}` keeps its newline.
+
 It does **not** apply to `{var:}`, `{const:}` or `{t:}`. Those are values, and a
 value that happens to be empty this render is not a structural line -- collapsing
 it would make the output depend on the data in a way the author did not write.

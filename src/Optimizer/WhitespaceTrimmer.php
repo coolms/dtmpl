@@ -10,6 +10,7 @@ use CoolMS\Dtmpl\AST\FillNode;
 use CoolMS\Dtmpl\AST\IncludeNode;
 use CoolMS\Dtmpl\AST\LoopNode;
 use CoolMS\Dtmpl\AST\Node;
+use CoolMS\Dtmpl\AST\SilentNode;
 use CoolMS\Dtmpl\AST\SlotNode;
 use CoolMS\Dtmpl\AST\TemplateNode;
 use CoolMS\Dtmpl\AST\TextNode;
@@ -19,7 +20,7 @@ use CoolMS\Dtmpl\AST\WidgetNode;
  * AST pass that collapses orphan blank lines around silent tags and
  * around block-tag boundaries (open, close, and `{else}` separators).
  *
- * Silent tags (currently only DefineNode) and block-nodes that sit
+ * Silent tags (`{def:}`, comments, asset blocks) and block-nodes that sit
  * alone on a line have their surrounding newline + indentation
  * collapsed so the rendered output reads as the author intended,
  * without artifacts left by tags that consumed their own line.
@@ -72,15 +73,32 @@ final class WhitespaceTrimmer
 
         $count = count($result);
 
+        $collapsed = [];
         for ($i = 0; $i < $count; ++$i) {
             if (!$this->isSilent($result[$i])) {
                 continue;
             }
-            $left = $result[$i - 1] ?? null;
+            // Comments and asset blocks written side by side are one run: the line is judged from the text before
+            // the first of them to the text after the last. Only the last can collapse it: a silent node to its right
+            // is not text, so the earlier ones leave it alone.
+            $first = $i;
+            if ($result[$i] instanceof SilentNode) {
+                while ($first > 0 && $result[$first - 1] instanceof SilentNode) {
+                    --$first;
+                }
+            }
+            $left = $result[$first - 1] ?? null;
             $right = $result[$i + 1] ?? null;
-            [$newLeft, $newRight] = $this->trimBorder($left, $right, false);
-            if ($newLeft !== $left && $i > 0 && $newLeft instanceof Node) {
-                $result[$i - 1] = $newLeft;
+            if ($result[$i] instanceof SilentNode) {
+                [$newLeft, $newRight] = $this->trimSilentLine($left, $right, isset($collapsed[$first - 2]));
+            } else {
+                [$newLeft, $newRight] = $this->trimBorder($left, $right, false);
+            }
+            if ($newRight !== $right) {
+                $collapsed[$i] = true;
+            }
+            if ($newLeft !== $left && $first > 0 && $newLeft instanceof Node) {
+                $result[$first - 1] = $newLeft;
                 $changed = true;
             }
             if ($newRight !== $right && $i + 1 < $count && $newRight instanceof Node) {
@@ -115,11 +133,31 @@ final class WhitespaceTrimmer
     }
 
     /**
-     * Silent predicate -- currently true only for DefineNode.
+     * The line of a comment or an asset block collapses only when nothing else is written on it: the text before it
+     * ends a line (or the template starts there), or is the indent left by a silent line just collapsed before it.
+     *
+     * @return array{?Node, ?Node}
+     */
+    private function trimSilentLine(?Node $left, ?Node $right, bool $afterCollapsedLine): array
+    {
+        if ($afterCollapsedLine && $left instanceof TextNode && 1 === preg_match('/^[ \t]*$/', $left->content)) {
+            [, $newRight] = $this->trimBorder(null, $right, true);
+            if ($newRight === $right) {
+                return [$left, $right];
+            }
+
+            return [new TextNode('', $left->line, $left->column), $newRight];
+        }
+
+        return $this->trimBorder($left, $right, true);
+    }
+
+    /**
+     * Silent predicate: a `{def:}`, a comment, or an asset block -- each renders nothing at its own place.
      */
     private function isSilent(Node $node): bool
     {
-        return $node instanceof DefineNode;
+        return $node instanceof DefineNode || $node instanceof SilentNode;
     }
 
     /**

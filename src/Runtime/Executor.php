@@ -14,6 +14,7 @@ use CoolMS\Dtmpl\AST\FilterNode;
 use CoolMS\Dtmpl\AST\IncludeNode;
 use CoolMS\Dtmpl\AST\LoopNode;
 use CoolMS\Dtmpl\AST\Node;
+use CoolMS\Dtmpl\AST\SilentNode;
 use CoolMS\Dtmpl\AST\SlotNode;
 use CoolMS\Dtmpl\AST\TemplateNode;
 use CoolMS\Dtmpl\AST\TextNode;
@@ -124,6 +125,7 @@ final class Executor
             $node instanceof WidgetNode => $this->executeWidget($node, $context),
             $node instanceof TranslateNode => $this->executeTranslate($node, $context),
             $node instanceof FillNode => '', // consumed by executeInclude, never dispatched directly
+            $node instanceof SilentNode => '', // a comment or an asset block: nothing at its own place
             default => throw new RuntimeException('Unknown node type: ' . get_class($node)),
         };
     }

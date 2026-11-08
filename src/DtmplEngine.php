@@ -46,7 +46,7 @@ final class DtmplEngine implements TemplateCompilerInterface
      * constructor property, a removed one, a changed type). Old entries
      * then age out under their own keys instead of being read back.
      */
-    private const string AST_VERSION = '4';
+    private const string AST_VERSION = '5';
 
     /** This package's name, as Composer installs it. */
     private const string PACKAGE = 'coolms/dtmpl';

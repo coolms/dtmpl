@@ -10,6 +10,18 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Changed
+
+- **A comment or a `{css}` / `{js}` asset block alone on its line takes the line with it**, as a `{def:}` line
+  does: its indentation and newline are no longer printed. A block over several lines, alone on its lines,
+  collapses from its opening tag to its closing tag; consecutive such lines all collapse. Written mid-line or
+  after other content on its line, it leaves the line as authored. A template that relied on the blank line a
+  comment used to leave prints one line fewer. The lexer now emits a `COMMENT` token (no value) where a comment
+  was, and the parser a `SilentNode` for a comment or an asset block; the AST cache version moves to 5, so
+  cached trees from earlier versions are rebuilt.
+
 ## 2.3.0-alpha6 - 2026-11-02
 
 ### Added

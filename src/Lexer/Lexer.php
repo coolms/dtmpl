@@ -361,6 +361,7 @@ final class Lexer
      */
     private function scanCommentBlock(): void
     {
+        $start = $this->position;
         $startLine = $this->line;
         $startColumn = $this->column;
 
@@ -372,6 +373,7 @@ final class Lexer
                 && '}' === $this->peek(self::closingBraceOffset(self::COMMENT_CLOSE))
             ) {
                 $this->skip(self::markerLength(self::COMMENT_CLOSE));
+                $this->addToken(TokenType::Comment, '', $start, $startLine, $startColumn);
 
                 return;
             }
@@ -392,6 +394,7 @@ final class Lexer
      */
     private function scanInlineComment(): void
     {
+        $start = $this->position;
         $startLine = $this->line;
         $startColumn = $this->column;
 
@@ -399,6 +402,8 @@ final class Lexer
 
         while (!$this->isEof()) {
             if ('}' === $this->advance()) {
+                $this->addToken(TokenType::Comment, '', $start, $startLine, $startColumn);
+
                 return;
             }
         }

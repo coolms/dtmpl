@@ -16,6 +16,7 @@ use CoolMS\Dtmpl\AST\FilterNode;
 use CoolMS\Dtmpl\AST\IncludeNode;
 use CoolMS\Dtmpl\AST\LoopNode;
 use CoolMS\Dtmpl\AST\Node;
+use CoolMS\Dtmpl\AST\SilentNode;
 use CoolMS\Dtmpl\AST\SlotNode;
 use CoolMS\Dtmpl\AST\TemplateNode;
 use CoolMS\Dtmpl\AST\TextNode;
@@ -70,10 +71,14 @@ final class Parser
             // parseNode() at EOF and reports `Unexpected token: EOF` -- which
             // is what the first version did.
             if ($this->current()->isAny(TokenType::AssetCss, TokenType::AssetJs)) {
+                $token = $this->current();
                 $asset = $this->parseAsset();
                 if (null !== $asset) {
                     $assets[] = $asset;
                 }
+                // Its body is gathered elsewhere; where it was written it renders nothing, and a line holding only
+                // it collapses with it.
+                $children[] = new SilentNode(SilentNode::ASSET, $token->line, $token->column);
                 continue;
             }
             $children[] = $this->parseNode();
@@ -135,6 +140,12 @@ final class Parser
         // Text content
         if ($token->is(TokenType::Text)) {
             return $this->parseText();
+        }
+        // A comment: nothing, at its place.
+        if ($token->is(TokenType::Comment)) {
+            $this->advance();
+
+            return new SilentNode(SilentNode::COMMENT, $token->line, $token->column);
         }
         // Tag
         if ($token->is(TokenType::OpenBrace)) {
@@ -568,6 +579,11 @@ final class Parser
         // Include with fills: parse {fill:name}...{endfill} blocks until {endinclude}
         $fills = [];
         while (!$this->isEof() && !$this->checkEndInclude()) {
+            // A comment between fill blocks is skipped like the whitespace around it.
+            if ($this->current()->is(TokenType::Comment)) {
+                $this->advance();
+                continue;
+            }
             // Skip whitespace-only text between fill blocks
             if ($this->current()->is(TokenType::Text)) {
                 if ('' === trim($this->current()->value)) {
@@ -1153,8 +1169,8 @@ final class Parser
             if (null === $t) {
                 return false;
             }
-            // Skip whitespace-only text tokens
-            if ($t->is(TokenType::Text) && '' === trim($t->value)) {
+            // Skip whitespace-only text tokens and comments
+            if ($t->is(TokenType::Comment) || ($t->is(TokenType::Text) && '' === trim($t->value))) {
                 ++$offset;
                 continue;
             }
