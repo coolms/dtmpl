@@ -65,6 +65,8 @@ enum TokenType: string
     // the cost on every token in every template.
     case AssetCss = 'ASSET_CSS';
     case AssetJs = 'ASSET_JS';
+    // Where a comment was written: it renders nothing, and marks the place so its line can collapse.
+    case Comment = 'COMMENT';
 
     // Special
     case Eof = 'EOF'; // End of file

@@ -35,6 +35,8 @@ final class AstVersionTest extends TestCase
         '3' => '5241f74786ae251ab6017754e44467cfd8ef32a8964cd2cf101e3143aa8ca2a1',
         // FilterNode::$placeholder (the `?` placeholder). 2.3.0-alpha4 shipped this shape still as version 3.
         '4' => '71767021269be786cffb6f11081c21dde9c9c6c49d73adba8f00f374136989d8',
+        // SilentNode: where a comment or an asset block was written, so its line collapses.
+        '5' => '24d7c3c13077809410f59208dae0ba310299bfbeaefe1f9d9154aa44c6d46736',
     ];
 
     #[Test]
