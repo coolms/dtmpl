@@ -113,6 +113,11 @@ final class SilentLinesCollapseTest extends TestCase
         self::assertSame(['run();'], $gathered->js);
     }
 
+    protected function setUp(): void
+    {
+        $this->engine = new DtmplEngine();
+    }
+
     private function engineWithPartial(): DtmplEngine
     {
         $loader = new class implements TemplateLoaderInterface {
@@ -128,10 +133,5 @@ final class SilentLinesCollapseTest extends TestCase
         };
 
         return new DtmplEngine(loader: $loader);
-    }
-
-    protected function setUp(): void
-    {
-        $this->engine = new DtmplEngine();
     }
 }
