@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CoolMS\Dtmpl\Tests;
 
 use CoolMS\Dtmpl\DtmplEngine;
+use CoolMS\Dtmpl\TemplateLoaderInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -57,6 +58,28 @@ final class SilentLinesCollapseTest extends TestCase
     }
 
     #[Test]
+    public function silentNodesSideBySideOnOneLineCollapseAsOne(): void
+    {
+        self::assertSame("<p>a</p>\n<p>b</p>", $this->engine->render("<p>a</p>\n  {comment:x}{comment:y}\n<p>b</p>"));
+        self::assertSame("<p>a</p>\n<p>b</p>", $this->engine->render("<p>a</p>\n{css}.a{x:1}{endcss}{comment:y}\n<p>b</p>"));
+        // After content on its line, the run leaves the line as authored.
+        self::assertSame("<p>a</p>\n<p>b</p>", $this->engine->render("<p>a</p>{comment:x}{comment:y}\n<p>b</p>"));
+    }
+
+    #[Test]
+    public function aCommentBetweenIncludeFillsIsSkipped(): void
+    {
+        $engine = $this->engineWithPartial();
+        $block = "{include:`card`}\n  {fill:title}T{endfill}\n  {comment}\n    why\n  {endcomment}\n  {fill:body}B{endfill}\n{endinclude}";
+        $inline = "{include:`card`}\n  {fill:title}T{endfill}\n  {comment:note}\n  {fill:body}B{endfill}\n{endinclude}";
+        $first = "{include:`card`}{comment:note}\n  {fill:title}T{endfill}\n  {fill:body}B{endfill}\n{endinclude}";
+
+        foreach ([$block, $inline, $first] as $template) {
+            self::assertSame('<h1>T</h1><p>B</p>', $engine->render($template));
+        }
+    }
+
+    #[Test]
     public function aSingleLineAssetBlockAloneOnItsLineTakesTheLine(): void
     {
         $template = "<p>a</p>\n  {js}document.body.hidden = false;{endjs}\n<p>b</p>";
@@ -88,6 +111,23 @@ final class SilentLinesCollapseTest extends TestCase
 
         self::assertSame("<p>a</p>\n<p>b</p>", $this->engine->render($template));
         self::assertSame(['run();'], $gathered->js);
+    }
+
+    private function engineWithPartial(): DtmplEngine
+    {
+        $loader = new class implements TemplateLoaderInterface {
+            public function load(string $path, string $basePath = ''): string
+            {
+                return 'card' === $path ? '<h1>{slot:title}{endslot}</h1><p>{slot:body}{endslot}</p>' : '';
+            }
+
+            public function resolve(string $path, string $basePath = ''): string
+            {
+                return $path;
+            }
+        };
+
+        return new DtmplEngine(loader: $loader);
     }
 
     protected function setUp(): void

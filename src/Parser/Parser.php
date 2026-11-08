@@ -579,6 +579,11 @@ final class Parser
         // Include with fills: parse {fill:name}...{endfill} blocks until {endinclude}
         $fills = [];
         while (!$this->isEof() && !$this->checkEndInclude()) {
+            // A comment between fill blocks is skipped like the whitespace around it.
+            if ($this->current()->is(TokenType::Comment)) {
+                $this->advance();
+                continue;
+            }
             // Skip whitespace-only text between fill blocks
             if ($this->current()->is(TokenType::Text)) {
                 if ('' === trim($this->current()->value)) {
@@ -1164,8 +1169,8 @@ final class Parser
             if (null === $t) {
                 return false;
             }
-            // Skip whitespace-only text tokens
-            if ($t->is(TokenType::Text) && '' === trim($t->value)) {
+            // Skip whitespace-only text tokens and comments
+            if ($t->is(TokenType::Comment) || ($t->is(TokenType::Text) && '' === trim($t->value))) {
                 ++$offset;
                 continue;
             }
