@@ -185,7 +185,12 @@ final class FilterRegistry
 
             return mb_strtoupper(mb_substr($s, 0, 1)) . mb_substr($s, 1);
         });
-        $this->register('title', fn ($v) => mb_convert_case((string) $v, MB_CASE_TITLE));
+        // Each word's first letter upper-cased, the rest as written (as ucwords did): "USA today" stays "USA Today".
+        $this->register('title', static fn ($v): string => (string) preg_replace_callback(
+            '/(^|\s)(\p{Ll})/u',
+            static fn (array $m): string => $m[1] . mb_strtoupper($m[2]),
+            (string) $v,
+        ));
 
         // Truncate with ellipsis
         $this->register('truncate', function ($value, $length = 100, $suffix = '...') {

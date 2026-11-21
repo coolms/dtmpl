@@ -68,6 +68,10 @@ class DtmplEngineTest extends TestCase
 
         $this->assertSame('Русский Язык', $this->engine->render('{var:w title}', ['w' => 'русский язык']));
         $this->assertSame('Hello World', $this->engine->render('{var:w title}', ['w' => 'hello world']));
+        // The rest of each word is left as written, as ucwords left it.
+        $this->assertSame('USA Today', $this->engine->render('{var:w title}', ['w' => 'USA today']));
+        $this->assertSame('IPhone Case', $this->engine->render('{var:w title}', ['w' => 'iPhone case']));
+        $this->assertSame('МГУ Сегодня', $this->engine->render('{var:w title}', ['w' => 'МГУ сегодня']));
     }
 
     public function testVariableWithMultipleFilters(): void
