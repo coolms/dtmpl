@@ -14,6 +14,11 @@ same commit as the change it describes.
 
 ### Changed
 
+- `capitalize` and `title` change the first letter in any script: `{var:w capitalize}` gives "Українська" for
+  "українська". They were `ucfirst` and `ucwords`, which change ASCII letters only. `capitalize` leaves the rest as
+  written; `title` capitalises each word's first letter and also leaves the rest as written (`USA today` gives
+  `USA Today`, as before), so what an existing template renders in ASCII does not change.
+
 - **A comment or a `{css}` / `{js}` asset block alone on its line takes the line with it**, as a `{def:}` line
   does: its indentation and newline are no longer printed. A block over several lines, alone on its lines,
   collapses from its opening tag to its closing tag; consecutive such lines all collapse. Written mid-line or
