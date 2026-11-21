@@ -56,6 +56,20 @@ class DtmplEngineTest extends TestCase
         $this->assertSame('JOHN', $result);
     }
 
+    public function testCapitalizeAndTitleChangeTheFirstLetterInAnyScript(): void
+    {
+        $this->assertSame('Українська', $this->engine->render('{var:w capitalize}', ['w' => 'українська']));
+        $this->assertSame('Ελληνικά', $this->engine->render('{var:w capitalize}', ['w' => 'ελληνικά']));
+        $this->assertSame('English', $this->engine->render('{var:w capitalize}', ['w' => 'english']));
+        // Only the first letter: the rest is left as written.
+        $this->assertSame('Русский язык', $this->engine->render('{var:w capitalize}', ['w' => 'русский язык']));
+        $this->assertSame('ÉCole', $this->engine->render('{var:w capitalize}', ['w' => 'éCole']));
+        $this->assertSame('', $this->engine->render('{var:w capitalize}', ['w' => '']));
+
+        $this->assertSame('Русский Язык', $this->engine->render('{var:w title}', ['w' => 'русский язык']));
+        $this->assertSame('Hello World', $this->engine->render('{var:w title}', ['w' => 'hello world']));
+    }
+
     public function testVariableWithMultipleFilters(): void
     {
         $result = $this->engine->render('{var:text php.trim uppercase}', ['text' => '  hello  ']);

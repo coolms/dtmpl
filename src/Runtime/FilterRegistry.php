@@ -179,8 +179,13 @@ final class FilterRegistry
         // String filters
         $this->register('uppercase', fn ($v) => mb_strtoupper((string) $v));
         $this->register('lowercase', fn ($v) => mb_strtolower((string) $v));
-        $this->register('capitalize', fn ($v) => ucfirst((string) $v));
-        $this->register('title', fn ($v) => ucwords((string) $v));
+        // The first letter of the text, of each word for title, in any script: ucfirst and ucwords change ASCII only.
+        $this->register('capitalize', static function ($v): string {
+            $s = (string) $v;
+
+            return mb_strtoupper(mb_substr($s, 0, 1)) . mb_substr($s, 1);
+        });
+        $this->register('title', fn ($v) => mb_convert_case((string) $v, MB_CASE_TITLE));
 
         // Truncate with ellipsis
         $this->register('truncate', function ($value, $length = 100, $suffix = '...') {
