@@ -686,3 +686,33 @@ $filenameEngine = $engine->withOutputMode(OutputMode::Text);
 owns the target format. It is not a safe mode and an unsafe mode -- each is
 correct for its format and wrong for the other. Anything that reaches a browser
 stays `OutputMode::Html`, which is the default.
+
+### Printed variables with no value
+
+A missing value prints as nothing: `Dear {var:name},` with no `name` gives
+`Dear ,`. A page can live with that. A generated document usually cannot -- an
+invoice with an empty amount, a letter with an empty greeting -- so a host that
+refuses such output can ask the engine to collect every printed variable that had
+no value:
+
+<!-- doctest:skip -->
+```php
+use CoolMS\Dtmpl\Runtime\MissingValues;
+
+$missing = new MissingValues();
+$html = $engine->withMissingValues($missing)->render($template, $data);
+
+foreach ($missing->all() as $entry) {
+    // $entry['path']: the variable as written, e.g. 'line.amount'
+    // $entry['template']: the template that printed it ('' for the one rendered, else an include's path)
+    // $entry['loops']: the loop items around it, outermost first, each ['path' => 'lines', 'index' => 1, 'key' => 1]
+}
+```
+
+A variable is recorded where it is actually printed: in the branch taken (a branch
+not taken prints nothing), in every loop item, inside an include. "No value" is
+null, an empty or blank string, or an empty list; `0` and `false` are values. A
+variable with a default of its own (``{var:x default:`none`}``, ``{var:x:default=`none`}``)
+is never recorded, and neither is an assignment. The output is the same with or
+without a collector, and the collector is **off unless you ask for it**: nothing
+changes for a host that does not call `withMissingValues()`.

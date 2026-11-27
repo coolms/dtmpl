@@ -15,6 +15,7 @@ use CoolMS\Dtmpl\Runtime\CollectedAssets;
 use CoolMS\Dtmpl\Runtime\ConstantProviderInterface;
 use CoolMS\Dtmpl\Runtime\Executor;
 use CoolMS\Dtmpl\Runtime\FilterRegistry;
+use CoolMS\Dtmpl\Runtime\MissingValues;
 use CoolMS\Dtmpl\Runtime\OutputMode;
 use CoolMS\Dtmpl\Runtime\TemplateCompilerInterface;
 use CoolMS\Dtmpl\Widget\WidgetRegistry;
@@ -82,6 +83,7 @@ final class DtmplEngine implements TemplateCompilerInterface
         private readonly ?WidgetRegistry $widgets = null,
         private readonly ?TranslatorInterface $translator = null,
         private readonly OutputMode $outputMode = OutputMode::Html,
+        private readonly ?MissingValues $missingValues = null,
     ) {
         $this->lexer = new Lexer($encoding);
         $this->parser = new Parser();
@@ -94,6 +96,7 @@ final class DtmplEngine implements TemplateCompilerInterface
             translator: $translator,
             outputMode: $outputMode,
             debug: $debug,
+            missingValues: $missingValues,
         );
     }
 
@@ -230,6 +233,17 @@ final class DtmplEngine implements TemplateCompilerInterface
     public function withOutputMode(OutputMode $mode): self
     {
         return $this->cloneWith(outputMode: $mode);
+    }
+
+    /**
+     * Return a new engine instance that records, in `$missingValues`, every variable its renders print with no
+     * value and no default of its own: in the branch taken, in each loop item, inside an include. Off unless asked
+     * for; what is rendered does not change. For a host that refuses output with a hole in it (a generated
+     * document), never for one that prints what it can (a page).
+     */
+    public function withMissingValues(MissingValues $missingValues): self
+    {
+        return $this->cloneWith(missingValues: $missingValues);
     }
 
     /**
@@ -434,6 +448,7 @@ final class DtmplEngine implements TemplateCompilerInterface
     private function cloneWith(
         ?TemplateLoaderInterface $loader = null,
         ?OutputMode $outputMode = null,
+        ?MissingValues $missingValues = null,
     ): self {
         $clone = new self(
             cache: $this->cache,
@@ -443,6 +458,7 @@ final class DtmplEngine implements TemplateCompilerInterface
             widgets: $this->widgets,
             translator: $this->translator,
             outputMode: $outputMode ?? $this->outputMode,
+            missingValues: $missingValues ?? $this->missingValues,
         );
         $clone->constantProviders = $this->constantProviders;
 
