@@ -45,6 +45,13 @@ final class Executor
     /** @var string[] Stack of absolute paths currently being rendered, for circular-include detection. */
     private array $includeStack = [];
 
+    /**
+     * The loop items around what is being printed, outermost first: kept only while a collector is given.
+     *
+     * @var list<array{path: string, index: int, key: int|string}>
+     */
+    private array $loopItems = [];
+
     public function __construct(
         private readonly FilterRegistry $filters = new FilterRegistry(),
         private readonly ?TemplateLoaderInterface $loader = null,
@@ -57,6 +64,7 @@ final class Executor
          * `{slot}`. Off by default, so a production render is never annotated.
          */
         private readonly bool $debug = false,
+        private readonly ?MissingValues $missingValues = null,
     ) {
     }
 
@@ -104,6 +112,30 @@ final class Executor
         $locale = $context->get(['locale']);
 
         return is_string($locale) && '' !== $locale ? $locale : null;
+    }
+
+    /**
+     * A printed variable with a default of its own -- inline, or a `default` filter -- has its fallback, so it is
+     * never recorded as missing.
+     */
+    private static function recordsWhenMissing(VariableNode $node): bool
+    {
+        if (null !== $node->default) {
+            return false;
+        }
+        foreach ($node->filters as $filter) {
+            if ('default' === $filter->name) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** No value: null, an empty or blank string, or an empty list. False and 0 are values. */
+    private static function isMissing(mixed $value): bool
+    {
+        return null === $value || [] === $value || (is_string($value) && '' === trim($value));
     }
 
     /**
@@ -272,6 +304,9 @@ final class Executor
 
         // Regular variable output
         $value = $context->get($node->path, $node->default);
+        if (null !== $this->missingValues && self::recordsWhenMissing($node) && self::isMissing($value)) {
+            $this->missingValues->record(implode('.', $node->path), $this->currentPath, $this->loopItems);
+        }
 
         // Apply filters
         foreach ($node->filters as $filter) {
@@ -371,7 +406,16 @@ final class Executor
             // Execute loop body with child context
             $childContext = $context->createChild($loopData);
 
-            $output .= $this->renderChildren($node->body, $childContext);
+            if (null !== $this->missingValues) {
+                $this->loopItems[] = ['path' => implode('.', $node->path), 'index' => $index, 'key' => $key];
+            }
+            try {
+                $output .= $this->renderChildren($node->body, $childContext);
+            } finally {
+                if (null !== $this->missingValues) {
+                    array_pop($this->loopItems);
+                }
+            }
 
             // Add separator (split)
             if (null !== $node->split && $index < $total - 1) {

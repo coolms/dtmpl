@@ -10,6 +10,18 @@ Versioning is described in the [CoolMS contributing guide](https://github.com/co
 history when this file was created. Every entry after that is written in the
 same commit as the change it describes.
 
+## Unreleased
+
+### Added
+
+- **An opt-in collector of printed variables with no value**: `DtmplEngine::withMissingValues(MissingValues $c)`
+  returns an engine whose renders record, in `$c`, every `{var:}` printed with no value (null, an empty or blank
+  string, an empty list) and no default of its own -- where it is actually printed: in the branch taken, in each
+  loop item (with the loop's path, index and key), inside an include (with the included template's path).
+  **Off by default:** an engine not given a collector behaves exactly as before, and the output is the same with
+  or without one. For a host that refuses output with a hole in it (a generated document), not for one that
+  prints what it can (a page).
+
 ## 2.3.0-alpha7 - 2026-11-21
 
 ### Changed
